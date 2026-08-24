@@ -1,0 +1,17 @@
+MLSC VIT Pune — About the Community
+
+Microsoft Learn Student Community (MLSC) VIT Pune is a student-led technical community focused on helping students learn, build, collaborate and participate in technology-related activities.
+
+The community conducts technical workshops, hackathons, study sessions, project-building initiatives and networking activities throughout the academic year.
+
+MLSC aims to create an environment where students can learn technologies through practical implementation rather than only theoretical study.
+
+The community is open to students interested in areas such as artificial intelligence, machine learning, web development, application development, cloud computing and emerging technologies.
+
+Students can participate in MLSC as members, coordinators, domain leads or through event-specific volunteering opportunities.
+
+The community encourages members to participate in hackathons, technical competitions, open-source projects and collaborative development.
+
+MLSC also works with external technology communities, industry professionals and student organizations for selected events and initiatives.
+
+The primary objective of MLSC is not only to conduct events but also to build a community of students who learn from one another and create meaningful technical projects.

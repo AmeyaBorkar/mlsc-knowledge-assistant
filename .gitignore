@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Secrets & local config
+.env
+.env.local
+config.local.yaml
+
+# Build artefacts of the assistant
+data/index/
+data/cache/
+.fastembed_cache/
+models/
+
+# Evaluation output (reports are committed selectively, raw runs are not)
+evaluation/runs/*
+!evaluation/runs/.gitkeep
+
+# OS / editor
+.DS_Store
+__MACOSX/
+Thumbs.db
+.idea/
+.vscode/

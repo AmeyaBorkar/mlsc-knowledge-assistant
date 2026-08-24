@@ -1,0 +1,25 @@
+MLSC Technical Domains
+
+MLSC has multiple technical domains through which students can learn and contribute to projects.
+
+The major domains include:
+
+1. Artificial Intelligence and Machine Learning
+2. Web Development
+3. App Development
+4. Cloud Computing
+5. Web3
+
+Each domain has domain leads who are responsible for planning technical activities and coordinating with coordinators.
+
+The AI/ML domain focuses on machine learning, deep learning, natural language processing, computer vision, generative AI and applied AI systems.
+
+The Web Development domain focuses on frontend development, backend development, APIs, databases and full-stack applications.
+
+The App Development domain focuses on mobile application development and related technologies.
+
+The Cloud Computing domain focuses on cloud infrastructure, deployment, DevOps, containers and cloud-native applications.
+
+The Web3 domain focuses on blockchain technologies, decentralized applications, smart contracts and related technologies.
+
+Domain activities can include workshops, internal projects, study sessions, technical discussions and hackathon preparation.

@@ -1,0 +1,97 @@
+# ---------------------------------------------------------------------------
+# MLSC Knowledge Assistant — default configuration
+#
+# Every value here can be overridden by an environment variable using the
+# MLSC_ prefix and __ as the nesting separator, e.g.
+#     MLSC_RETRIEVAL__TOP_K=8
+#     MLSC_LLM__PROVIDER=anthropic
+# Secrets live in .env and never in this file.
+# ---------------------------------------------------------------------------
+
+knowledge_base:
+  path: data/knowledge_base
+  glob: "*.txt"
+
+chunking:
+  strategy: structural          # structural | fixed
+  version: structural-v1        # recorded in the index manifest
+  min_tokens: 40                # short paragraphs merge upward to this floor
+  max_tokens: 320               # a chunk above this is split at sentence boundaries
+  keep_lists_atomic: true       # never split a list block from its introducing sentence
+  prepend_doc_title: true       # embed as "{doc_title} - {chunk}"; stored text stays clean
+
+embedding:
+  backend: fastembed            # fastembed | sbert
+  model: BAAI/bge-small-en-v1.5
+  dimension: 384
+  batch_size: 32
+  cache_dir: data/cache/embeddings
+
+store:
+  backend: numpy                # numpy | chroma
+  path: data/index
+
+retrieval:
+  strategy: hybrid              # hybrid | dense | lexical
+  top_k: 6
+  candidate_k: 15               # per-retriever depth before fusion
+  rrf_k: 60                     # RRF constant; rank-based, so no score normalisation needed
+  max_chunks_per_document: 3    # diversification — the multi-document lever
+  bm25:
+    k1: 1.5
+    b: 0.75
+  rerank:
+    enabled: false              # a 40-chunk corpus cannot justify the latency
+    backend: llm
+
+abstention:
+  # Gate 1 — retrieval threshold. PLACEHOLDER: calibrated in phase 7 via `mlsc calibrate`,
+  # which sweeps this value and reports the abstention precision/recall curve.
+  # The committed value must be one chosen from that curve, with the rationale
+  # written into docs/EVALUATION.md. Do not hand-tune it.
+  min_dense_score: 0.35
+  min_score_margin: 0.0         # gap between rank 1 and rank 2; 0 disables the check
+  require_sufficient_context: true    # gate 2
+  verify_faithfulness: false          # gate 3 — costs an extra call
+
+llm:
+  provider: gemini              # gemini | anthropic | openai | groq | ollama
+  model: gemini-2.5-flash
+  temperature: 0.0              # grounded extraction, not creative writing
+  max_output_tokens: 800
+  timeout_s: 30
+  max_retries: 3
+
+  # Per-provider defaults used when the provider is selected without an explicit model.
+  models:
+    gemini: gemini-2.5-flash
+    anthropic: claude-haiku-4-5-20251001
+    openai: gpt-4.1-mini
+    groq: llama-3.3-70b-versatile
+    ollama: llama3.1:8b
+
+generation:
+  prompt_version: grounded-v1   # travels into every evaluation run
+  max_context_chunks: 6
+  include_doc_titles: true
+
+evaluation:
+  dataset_dir: evaluation/datasets
+  runs_dir: evaluation/runs
+  default_dataset: dev_set
+  k_values: [3, 5, 6, 10]       # metrics reported at several k, never just one
+  judge:
+    provider: gemini            # switchable to a different provider to reduce self-preference bias
+    model: gemini-2.5-flash
+    temperature: 0.0
+    cache: true                 # keyed by (question, answer, context, prompt_version)
+  relevancy_questions: 3        # hypothetical questions generated per answer
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  cors_origins: ["http://localhost:8000"]
+  max_question_length: 1000
+  serve_web_ui: true
+
+log_level: INFO

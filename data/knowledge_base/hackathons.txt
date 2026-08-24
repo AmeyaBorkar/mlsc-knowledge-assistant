@@ -1,0 +1,17 @@
+MLSC Hackathons
+
+MLSC organizes and participates in hackathons to encourage students to build practical solutions.
+
+Hackathons may be conducted independently or in collaboration with external organizations.
+
+Participants generally progress through several stages including registration, idea submission, shortlisting, development and final presentation.
+
+During development, mentors may provide technical guidance to participating teams.
+
+MLSC encourages participants to focus on solving meaningful problems rather than building projects solely for demonstration.
+
+Projects may involve multiple technical domains. For example, an AI-powered application could require artificial intelligence, web development and cloud deployment.
+
+Participants are generally evaluated based on factors such as innovation, technical implementation, problem relevance, feasibility, scalability and quality of presentation.
+
+The exact judging criteria can vary between hackathons.

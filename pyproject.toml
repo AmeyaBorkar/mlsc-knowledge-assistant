@@ -1,0 +1,97 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mlsc-knowledge-assistant"
+version = "0.1.0"
+description = "A grounded, citation-first RAG assistant over the MLSC knowledge base."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Ameya Borkar" }]
+keywords = ["rag", "retrieval", "llm", "evaluation", "mlsc"]
+
+dependencies = [
+  # --- API + web ---
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "sse-starlette>=2.1",
+  # --- config + models ---
+  "pydantic>=2.9",
+  "pydantic-settings>=2.6",
+  "pyyaml>=6.0",
+  "python-dotenv>=1.0",
+  # --- retrieval ---
+  "fastembed>=0.5",          # ONNX embeddings, no torch
+  "numpy>=1.26",
+  "rank-bm25>=0.2.2",        # lexical half of the hybrid retriever
+  # --- generation (default provider only; others are extras) ---
+  "google-genai>=1.0",
+  "httpx>=0.27",
+  "tenacity>=9.0",           # retry/backoff around provider calls
+  # --- cli + presentation ---
+  "typer>=0.15",
+  "rich>=13.9",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic>=0.40"]
+openai    = ["openai>=1.55"]
+groq      = ["groq>=0.13"]
+chroma    = ["chromadb>=0.5"]
+sbert     = ["sentence-transformers>=3.3"]   # alternative Embedder adapter
+ragas     = ["ragas>=0.2", "datasets>=3.0"]  # cross-check our own metrics
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=6.0",
+  "ruff>=0.8",
+  "mypy>=1.13",
+  "types-PyYAML",
+  "pre-commit>=4.0",
+]
+
+[project.scripts]
+mlsc = "mlsc_assistant.cli:app"
+
+[project.urls]
+Repository = "https://github.com/AmeyaBorkar/mlsc-knowledge-assistant"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mlsc_assistant"]
+
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "C4", "RET", "ARG", "PTH", "RUF"]
+ignore = ["E501"]  # line length is handled by the formatter
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG"]
+
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+packages = ["mlsc_assistant"]
+mypy_path = "src"
+strict = true
+warn_unreachable = true
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = ["fastembed.*", "rank_bm25.*", "chromadb.*", "ragas.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+  "integration: exercises a real LLM provider (requires an API key)",
+  "slow: takes more than a couple of seconds",
+]

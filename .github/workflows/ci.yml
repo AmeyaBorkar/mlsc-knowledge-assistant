@@ -1,0 +1,66 @@
+name: CI
+
+# Automatic triggers are enabled in Phase 0, once there is source and a test suite
+# to run (see docs/PLAN.md). Until then this is manual-only, so the repo does not
+# carry a failing badge for work that has not been written yet.
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check . && ruff format --check .
+
+      - name: Type check
+        run: mypy
+
+      - name: Tests
+        run: pytest --cov=mlsc_assistant --cov-report=term-missing
+
+  retrieval-gate:
+    name: Retrieval quality gate
+    runs-on: ubuntu-latest
+    # No API key: indexing and every retrieval metric run offline by design (see docs/DECISIONS.md D4),
+    # so retrieval quality can be gated on every push rather than checked by hand.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: fastembed-bge-small-${{ hashFiles('config.yaml') }}
+
+      - name: Build index
+        run: mlsc index
+
+      - name: Retrieval metrics
+        run: mlsc eval --metrics retrieval --fail-under recall_at_k=0.80

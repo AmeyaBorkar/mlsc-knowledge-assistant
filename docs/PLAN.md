@@ -1,0 +1,166 @@
+# Implementation plan
+
+Build order, chosen so that **every phase ends with something demonstrable** and the risky parts
+happen early. The brief recommends about 6 hours of working time; the estimates below are a
+budget, not a promise.
+
+## Sequencing principle
+
+Retrieval before generation, and evaluation before tuning.
+
+Retrieval is the ceiling on everything downstream — no prompt recovers a fact that was never
+fetched — and it is the half that needs no API key, so it can be built and measured immediately.
+Evaluation comes before any tuning because tuning without measurement is guessing, and the guess
+would then have to be defended in the interview.
+
+---
+
+### Phase 0 — Foundations *(~30 min)*
+
+Config, domain models, ports, error types, CLI skeleton, CI.
+
+- `core/models.py`, `core/ports.py`, `core/errors.py`
+- `config.py` — pydantic-settings over `config.yaml` + `.env`
+- `cli.py` skeleton with typer
+- GitHub Actions: ruff, mypy, pytest
+
+**Done when:** `mlsc --help` runs and CI is green on an empty test suite.
+
+---
+
+### Phase 1 — Ingestion and indexing *(~60 min)*
+
+- `ingestion/loader.py` — read `data/knowledge_base/*.txt`, extract the title from line 1,
+  checksum each document
+- `ingestion/chunker.py` — structure-aware chunking (D9): paragraph splits, atomic list blocks,
+  orphan merging, deterministic IDs, character offsets preserved for citations
+- `embeddings/fastembed_embedder.py` + content-hash cache
+- `stores/numpy_store.py` — persist as `.npz` plus `manifest.json`
+- `ingestion/pipeline.py` — `mlsc index`
+
+**Done when:** `mlsc index` produces `data/index/` and prints the chunk count, and unit tests
+pin the chunk boundaries for `domains.txt` and `leadership.txt` — the two documents whose lists
+must not be split.
+
+**Risk to retire here:** confirm fastembed installs cleanly on Python 3.13 / Windows. If the
+ONNX wheel misbehaves, fall back to the sentence-transformers adapter (D3) — the port makes this
+a config change, but finding out in phase 1 rather than phase 5 is the point.
+
+---
+
+### Phase 2 — Retrieval *(~60 min)*
+
+- `retrieval/dense.py`, `retrieval/lexical.py` (BM25), `retrieval/fusion.py` (RRF),
+  `retrieval/diversify.py` (per-document cap)
+- `retrieval/retriever.py` — `HybridRetriever` with `strategy` switch and diagnostics
+- `mlsc search "..."` — rich table output with per-retriever explain
+
+**Done when:** `mlsc search "judging criteria"` returns the hackathon evaluation paragraph at
+rank 1, and `--strategy dense|lexical|hybrid` visibly differ.
+
+**Still no API key needed at this point.**
+
+---
+
+### Phase 3 — Evaluation harness, retrieval half *(~45 min)*
+
+Deliberately before generation. Retrieval quality is measurable without an LLM, and doing it now
+means phases 4–6 are tuned against numbers instead of vibes.
+
+- `evaluation/dataset.py` + author `evaluation/datasets/dev_set.yaml` (~30 questions, at least a
+  third unanswerable, gold chunk labels)
+- `evaluation/metrics/retrieval.py` — precision@k, recall@k, MRR, nDCG@k, doc hit rate,
+  multi-doc coverage
+- `evaluation/runner.py` + `report.py`
+- `mlsc eval --metrics retrieval`
+
+**Done when:** a retrieval-only report renders, and the dense / lexical / hybrid ablation
+produces real numbers. **This is the first point where D1 is proven rather than asserted** — if
+hybrid does not win here, the design changes.
+
+---
+
+### Phase 4 — Generation *(~60 min)*
+
+- `generation/providers/` — the `LLMProvider` port, a registry, and the Gemini adapter first
+- `generation/prompts.py` — versioned grounded-answering template
+- `generation/answerer.py` — context assembly, structured output (D5), citation binding and
+  validation against retrieved chunks
+- Abstention gates 1 and 2 (D6)
+- `mlsc ask "..."`
+
+**Done when:** `mlsc ask "What are the responsibilities of a domain lead?"` answers with
+citations, and `mlsc ask "Who is the current Technical Head?"` refuses and explains that the KB
+describes the role without naming anyone. **Those two commands are the core demo.**
+
+---
+
+### Phase 5 — HTTP API *(~45 min)*
+
+- `api/app.py` (lifespan loads the index once), `api/deps.py` (composition root),
+  `api/schemas.py`, `api/routes/*`
+- RFC 9457 error handling, request tracing
+- SSE streaming on `/v1/ask/stream`
+- `mlsc serve`
+
+**Done when:** the endpoints in `docs/API.md` respond as documented and `/docs` renders the
+generated OpenAPI schema.
+
+---
+
+### Phase 6 — Web UI *(~30 min)*
+
+One static page served by FastAPI: question box, streamed answer, citation cards that expand to
+the source passage, and a collapsible diagnostics panel showing retrieved chunks with scores and
+which gates fired.
+
+Deliberately small — the brief says correctness over UI. But the diagnostics panel earns its
+place: **being able to show, live, why the system refused a question is the strongest thing in
+the demo.**
+
+**Done when:** the demo can be driven end to end in a browser.
+
+---
+
+### Phase 7 — Full evaluation and the write-up *(~60 min)*
+
+- `evaluation/metrics/generation.py` (faithfulness, relevancy, correctness) + `judge.py`
+- `evaluation/metrics/abstention.py`
+- `mlsc calibrate` — sweep the gate-1 threshold, choose the operating point deliberately
+- Run every ablation from `docs/EVALUATION.md`
+- Optional RAGAS cross-check
+- Fill in the Results section: headline table, per-type breakdown, ablations, chosen operating
+  point with rationale, and an honest list of remaining failures
+
+**Done when:** `docs/EVALUATION.md` has real numbers and a paragraph on what the system still
+gets wrong.
+
+---
+
+### Phase 8 — Polish *(remaining time)*
+
+README run-through from a clean clone, docstrings, the no-hard-coded-answers CI test, and a
+final pass to make sure the docs describe the system that actually exists.
+
+---
+
+## Where the time will actually go
+
+Honest risk assessment, since estimates like the above are usually wrong in predictable ways:
+
+| Risk | Mitigation |
+|---|---|
+| fastembed on Python 3.13 / Windows | retired in phase 1; sbert adapter is the fallback |
+| Authoring 30 questions with gold chunk labels is slower than it looks | start with 15 covering all five types, grow to 30 in phase 7 |
+| Gemini free-tier rate limits during eval runs | judge verdicts are cached by content hash, so re-runs are nearly free |
+| Prompt iteration eating the clock | prompts are versioned and evaluated, so changes are accepted or rejected on numbers rather than re-read endlessly |
+| Scope creep into the UI | phase 6 is capped at one page; anything more waits until phase 8 |
+
+## Definition of done for the submission
+
+- [ ] `git clone`, `pip install -e .`, `mlsc index`, `mlsc serve` works from clean
+- [ ] Direct, multi-document, reasoning, unanswerable and ambiguous questions all behave correctly in a live demo
+- [ ] Every answer carries citations that resolve to real passages
+- [ ] `docs/EVALUATION.md` reports real numbers with ablations and a per-type breakdown
+- [ ] Every design decision in `docs/DECISIONS.md` is one I can defend out loud
+- [ ] No hard-coded answers anywhere, enforced by a test

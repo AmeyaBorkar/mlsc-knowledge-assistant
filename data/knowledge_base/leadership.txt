@@ -1,0 +1,25 @@
+MLSC Leadership Structure
+
+The MLSC technical team follows a hierarchical structure designed to encourage mentorship and knowledge sharing.
+
+The Technical Head coordinates the technical domains and works with domain leads to plan technical activities.
+
+Each technical domain has two domain leads.
+
+Domain leads are responsible for:
+
+- Planning the learning roadmap for their domain.
+- Assigning tasks to coordinators.
+- Conducting knowledge-sharing sessions.
+- Reviewing technical projects.
+- Mentoring coordinators.
+- Encouraging participation in hackathons.
+- Coordinating cross-domain projects when required.
+
+Coordinators work under the guidance of domain leads.
+
+Domain leads are expected to focus not only on their own technical development but also on helping coordinators develop their skills.
+
+A good domain lead should be able to explain technical concepts clearly, divide projects into manageable tasks and provide constructive feedback.
+
+Second-year coordinators are expected to gradually take more responsibility for projects and technical activities under the guidance of domain leads.
