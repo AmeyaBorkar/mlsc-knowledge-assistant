@@ -18,6 +18,15 @@ from fastapi.testclient import TestClient
 from mlsc_assistant.api.app import create_app
 from mlsc_assistant.config import Settings
 from mlsc_assistant.generation.providers.base import StructuredResult
+from mlsc_assistant.stores.numpy_store import NumpyVectorStore
+
+# These exercise the API against real retrieval, which needs a built index. The index is
+# a build artefact and is gitignored, so a fresh clone has none — skip with a message
+# naming the fix rather than erroring twenty-one times. CI builds the index first.
+pytestmark = pytest.mark.skipif(
+    NumpyVectorStore.read_manifest(Settings().index_path) is None,
+    reason="no index built; run `mlsc index` first",
+)
 
 ANSWER = {
     "sufficient_context": True,

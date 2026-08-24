@@ -25,6 +25,17 @@ jobs:
       - name: Install
         run: pip install -e ".[dev]"
 
+      - name: Cache embedding model
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          key: fastembed-bge-small-${{ hashFiles('config.yaml') }}
+
+      # The API tests exercise real retrieval against a real index, which is the point
+      # of them. data/index/ is a build artefact and is gitignored, so CI builds it.
+      - name: Build index
+        run: mlsc index
+
       - name: Lint
         run: ruff check . && ruff format --check .
 
