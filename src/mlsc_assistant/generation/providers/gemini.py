@@ -21,6 +21,7 @@ spends itself in backoff.
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Iterator
 from typing import Any
@@ -81,6 +82,11 @@ class GeminiProvider:
             raise ConfigurationError(
                 'google-genai is not installed. Run `pip install -e "."`.'
             ) from exc
+        # The SDK logs an "automatic function calling" advisory on every
+        # generate_content call. We declare no tools, so it never applies — it is
+        # pure noise above each answer in the CLI and each line in an eval run.
+        logging.getLogger("google_genai.models").setLevel(logging.ERROR)
+
         self._client = genai.Client(api_key=self._api_key)
         return self._client
 
