@@ -167,6 +167,17 @@ class RetrievalResult:
         return self.chunks[0].score - self.chunks[1].score
 
     @property
+    def top_dense_score(self) -> float | None:
+        """Best raw cosine score, or None if dense retrieval did not run.
+
+        Abstention gate 1 reads *this*, never ``top_score``. Under the hybrid strategy
+        ``top_score`` is an RRF score (~0.03, scale-free by construction), so comparing
+        a calibrated cosine threshold against it would be meaningless.
+        """
+        scores = [sc.dense_score for sc in self.chunks if sc.dense_score is not None]
+        return max(scores) if scores else None
+
+    @property
     def documents_represented(self) -> tuple[str, ...]:
         seen: dict[str, None] = {}
         for sc in self.chunks:

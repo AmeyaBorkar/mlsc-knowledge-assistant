@@ -6,9 +6,10 @@
 
 One measured property worth stating, because it shapes the abstention design: this
 model has a **high similarity floor**. Two entirely unrelated passages from this corpus
-(the domain list and the hackathon judging paragraph) embed to cosine 0.65. Scores are
-therefore only meaningful *relative to each other*, and any absolute threshold has to be
-calibrated rather than guessed.
+(the domain list and the hackathon judging paragraph) embed to cosine 0.65, and even an
+off-domain *query* only falls to about 0.43. Scores are therefore meaningful mainly
+relative to each other, and any absolute threshold must be calibrated rather than
+guessed.
 """
 
 from __future__ import annotations

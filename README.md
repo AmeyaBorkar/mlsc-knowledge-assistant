@@ -6,10 +6,10 @@ base does not contain the answer** rather than inventing something plausible.
 
 Built for the MLSC AI/ML Domain Lead recruitment challenge.
 
-> **Status: Phases 0-1 complete.** Ingestion, structure-aware chunking, embeddings and the
-> vector index are built, tested and runnable — `mlsc index` works today with no API key.
-> Retrieval, generation, the API and the evaluation harness are next; see
-> [`docs/PLAN.md`](docs/PLAN.md) for build order.
+> **Status: Phases 0-2 complete.** Ingestion, chunking, embeddings, the index and hybrid
+> retrieval are built and tested. `mlsc index` and `mlsc search` work today with no API key.
+> Generation, the API and the evaluation harness are next — see [`docs/PLAN.md`](docs/PLAN.md),
+> which also records what Phase 2 measured, including the parts that did not go as designed.
 
 ---
 
@@ -107,6 +107,12 @@ genuinely different causes:
 The threshold for gate 1 is **calibrated by sweeping it across the evaluation set** and reading
 the abstention precision/recall curve, not picked by hand.
 
+Measured on this corpus, best cosine per question: off-domain questions land at **0.43**,
+answerable ones between **0.67 and 0.90** — and near-miss unanswerables like the Technical Head
+one at **0.75**, *inside* the answerable range. So gate 1 can separate off-domain noise and
+nothing more; the near-misses are unreachable by any threshold. That is not a design
+preference, it is why gate 2 has to exist.
+
 ---
 
 ## Evaluation
@@ -133,8 +139,8 @@ cross-check. Reasoning for that, and full definitions, in
 
 ## Getting started
 
-`mlsc index`, `mlsc info` and the test suite work now. `search`, `ask` and `serve` arrive in
-Phases 2-5.
+`mlsc index`, `mlsc search`, `mlsc info` and the test suite work now, all without an API key.
+`ask` and `serve` arrive in Phases 4-5.
 
 ```bash
 git clone https://github.com/AmeyaBorkar/mlsc-knowledge-assistant

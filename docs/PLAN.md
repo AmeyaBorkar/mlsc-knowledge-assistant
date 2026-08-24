@@ -65,7 +65,7 @@ Three findings worth carrying forward:
 
 ---
 
-### Phase 2 — Retrieval *(~60 min)*
+### Phase 2 — Retrieval *(~60 min)* — **done**
 
 - `retrieval/dense.py`, `retrieval/lexical.py` (BM25), `retrieval/fusion.py` (RRF),
   `retrieval/diversify.py` (per-document cap)
@@ -73,9 +73,67 @@ Three findings worth carrying forward:
 - `mlsc search "..."` — rich table output with per-retriever explain
 
 **Done when:** `mlsc search "judging criteria"` returns the hackathon evaluation paragraph at
-rank 1, and `--strategy dense|lexical|hybrid` visibly differ.
+rank 1, and `--strategy dense|lexical|hybrid` visibly differ. Both hold.
 
 **Still no API key needed at this point.**
+
+#### What this phase measured
+
+Six hand-written questions across the strategies. This is a probe, not an evaluation —
+the numbers below come from questions I chose, which is exactly the bias Phase 3 exists to
+remove. Reported anyway, because two of the findings are inconvenient.
+
+**1. Hybrid does not uniformly beat dense here, and D1 is not yet proven.** Gold-chunk rank
+across five answerable questions:
+
+| Question | dense | lexical | hybrid |
+|---|---|---|---|
+| What technical domains exist in MLSC? | **1** | miss | 3 |
+| Web3 | **1** | 2 | **1** |
+| How are hackathon projects judged? | **1** | **1** | **1** |
+| How many leads does each domain have? | 5 | **1** | 3 |
+| What is expected of someone leading a domain? | **2** | 6 | 3 |
+
+MRR: dense **0.74**, hybrid **0.60**. Dense wins this sample. Hybrid is *steadier* — it has
+no rank-5 near-failure — but "more robust on five questions I wrote" is not evidence. If the
+Phase 3 evaluation confirms this, the honest outcome is to change the default strategy and
+report the negative result, not to keep hybrid because the design document says so.
+
+**2. Fusion does rescue a real dense failure.** "How many leads does each domain have?" —
+the answer sits in `leadership::c00` ("Each technical domain has two domain leads"), which
+dense ranks **5th** because the phrasing is generic, and BM25 ranks **1st** on exact terms.
+This is the case D1 was written for, and it is now an integration test.
+
+**3. Fusion also degrades the brief's own example question.** For "What technical domains
+exist in MLSC?", BM25 ranks the actual domain *list* 11th — the chunk is long and mostly
+domain names, so query-term density is low — while promoting a short chunk that merely
+mentions domains. RRF splits the difference and the list lands 3rd instead of 1st. Still
+inside the context window, so the answer survives; the cost is precision and position.
+
+**4. RRF's k=60 barely discriminates at this corpus size.** Across 18 candidates the whole
+score range spans under 1.3x, so rank 1 and rank 11 are nearly indistinguishable after
+fusion — which is *why* finding 3 happens. k=60 comes from TREC work over large candidate
+pools. `rrf_k` and `candidate_k` are now on the ablation list rather than tuned by hand here.
+
+**5. Abstention calibration data, which is the most useful output of this phase.** Best
+cosine, query vs chunk:
+
+| Question type | best cosine |
+|---|---|
+| off-domain ("who won the IPL final?") | **0.43** |
+| answerable | 0.67 – 0.90 |
+| near-miss unanswerable ("current Technical Head?") | **0.75** |
+| near-miss unanswerable ("membership fee?") | **0.74** |
+
+A threshold near 0.55 cleanly separates off-domain questions and nothing else. **The
+near-miss unanswerables sit inside the answerable range**, so no threshold can catch them at
+any operating point. That is the three-gate design's central claim, and it is now measured
+rather than argued.
+
+**6. BM25 title indexing: tested, kept.** Removing the document-title prefix from the BM25
+index was a plausible fix for candidate flooding. Measured: it drops the domain-list chunk
+out of the results entirely and helps nothing. Hypothesis rejected; `index_title` survives
+as an ablation knob.
 
 ---
 

@@ -41,6 +41,7 @@ retrieval:
   bm25:
     k1: 1.5
     b: 0.75
+    index_title: true      # measured: dropping it loses the domain-list chunk entirely
   rerank:
     enabled: false              # an 18-chunk corpus cannot justify the latency
     backend: llm
@@ -48,14 +49,21 @@ retrieval:
 abstention:
   # Gate 1 — retrieval threshold. PLACEHOLDER, and `calibrated: false` says so.
   #
-  # Measured on this corpus: two entirely unrelated passages (the domain list vs the
-  # hackathon judging paragraph) embed to cosine 0.65 under bge-small. The intuition
-  # that "unrelated scores near zero" is simply false for this model, so a hand-picked
-  # 0.35 would never fire and the gate would be decorative.
+  # Measured on this corpus (best cosine, query vs chunk):
+  #     off-domain question  ("who won the IPL final?")      0.43
+  #     near-miss unanswerable ("current Technical Head?")   0.75
+  #     near-miss unanswerable ("membership fee?")           0.74
+  #     genuinely answerable questions                       0.67 - 0.90
   #
-  # `mlsc calibrate` sweeps this value across the evaluation set and reports the
-  # abstention precision/recall curve. The committed value must come from that sweep,
-  # with its rationale in docs/EVALUATION.md, and `calibrated` flipped to true.
+  # Two things follow. A threshold near 0.55 cleanly separates off-domain questions and
+  # nothing else. The near-miss unanswerables sit *inside* the answerable range, so no
+  # threshold can catch them — that is gate 2's job, and it is why gate 1 alone would be
+  # a false comfort. (Separately, two unrelated passages *within* the corpus score 0.65;
+  # bge-small has a high floor, so "unrelated means near zero" is simply wrong here.)
+  #
+  # `mlsc calibrate` sweeps this and reports the abstention precision/recall curve. The
+  # committed value must come from that sweep, with its rationale in docs/EVALUATION.md,
+  # and `calibrated` flipped to true.
   min_dense_score: 0.35
   min_score_margin: 0.0         # gap between rank 1 and rank 2; 0 disables the check
   calibrated: false

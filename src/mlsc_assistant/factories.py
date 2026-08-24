@@ -14,10 +14,12 @@ from typing import cast
 
 from mlsc_assistant.config import Settings
 from mlsc_assistant.core.errors import ConfigurationError
+from mlsc_assistant.core.models import RetrievalStrategy
 from mlsc_assistant.core.ports import Chunker, Embedder, VectorStore
 from mlsc_assistant.embeddings.cache import FileEmbeddingCache, NullEmbeddingCache
 from mlsc_assistant.embeddings.fastembed_embedder import FastEmbedEmbedder
 from mlsc_assistant.ingestion.chunker import StructuralChunker
+from mlsc_assistant.retrieval.retriever import HybridRetriever
 from mlsc_assistant.stores.numpy_store import NumpyVectorStore
 
 
@@ -99,3 +101,34 @@ def load_store(settings: Settings) -> tuple[VectorStore, object]:
     store = make_store(settings)
     manifest = store.load()
     return store, manifest
+
+
+def make_retriever(
+    settings: Settings,
+    *,
+    embedder: Embedder | None = None,
+    store: VectorStore | None = None,
+) -> HybridRetriever:
+    """Build a retriever over an already-loaded store.
+
+    Collaborators are injectable so the evaluation harness can sweep strategies and
+    chunking variants without re-reading config or reloading the model each time.
+    """
+    if store is None:
+        store, _ = load_store(settings)
+    if embedder is None:
+        embedder = make_embedder(settings)
+
+    cfg = settings.retrieval
+    return HybridRetriever(
+        embedder=embedder,
+        store=store,
+        strategy=RetrievalStrategy(cfg.strategy),
+        top_k=cfg.top_k,
+        candidate_k=cfg.candidate_k,
+        rrf_k=cfg.rrf_k,
+        max_chunks_per_document=cfg.max_chunks_per_document,
+        bm25_k1=cfg.bm25.k1,
+        bm25_b=cfg.bm25.b,
+        bm25_index_title=cfg.bm25.index_title,
+    )

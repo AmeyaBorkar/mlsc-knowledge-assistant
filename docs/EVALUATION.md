@@ -105,6 +105,10 @@ Design claims should be measured, not asserted. Each of these is one run:
 | with vs without per-document diversification | that diversification is what moves multi-document coverage |
 | `top_k` in {3, 5, 6, 10} | where the precision/recall crossover sits on an 18-chunk corpus |
 | retrieval gate on vs off | how much of the abstention behaviour is the cheap gate rather than the model |
+| `rrf_k` in {10, 20, 60} | whether the standard k=60 is too flat for 18 candidates (Phase 2 finding 4) |
+| `candidate_k` in {6, 10, 15} | whether fusing over most of the corpus feeds RRF noise as rank signal |
+| BM25 with vs without stemming | how much "hackathons" matching "hackathon" is actually worth |
+| BM25 with vs without the title prefix | probed in Phase 2 and kept; confirm across the full set |
 
 If an ablation shows a component does not help, **it gets removed and the negative result is
 reported**. A hybrid retriever that loses to dense-only would be a finding worth stating, not a

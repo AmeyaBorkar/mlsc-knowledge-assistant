@@ -72,6 +72,8 @@ class StoreConfig(BaseModel):
 class BM25Config(BaseModel):
     k1: float = 1.5
     b: float = 0.75
+    index_title: bool = True
+    """Whether BM25 indexes the document-title prefix alongside the chunk text."""
 
 
 class RerankConfig(BaseModel):
@@ -101,11 +103,14 @@ class AbstentionConfig(BaseModel):
     """Gate thresholds.
 
     ``min_dense_score`` is deliberately a *calibrated* value, not a hand-picked one.
-    Empirically, bge-small scores two entirely unrelated passages from this corpus at
-    cosine ~0.65, so the naive intuition that "unrelated means near zero" is wrong and
-    any hand-chosen threshold below that would never fire. ``mlsc calibrate`` sweeps
-    this and reports the abstention precision/recall curve; the committed value must
-    come from that sweep with its rationale recorded in docs/EVALUATION.md.
+
+    Measured best-cosine on this corpus: off-domain questions land near 0.43, genuinely
+    answerable ones between 0.67 and 0.90, and near-miss unanswerables ("who is the
+    current Technical Head?") at 0.75 — *inside* the answerable range. So a threshold
+    can separate off-domain noise and nothing more; catching near-misses is gate 2's
+    job. ``mlsc calibrate`` sweeps this value and reports the resulting abstention
+    precision/recall curve, and the committed number must come from that sweep with its
+    rationale recorded in docs/EVALUATION.md.
     """
 
     min_dense_score: float = Field(0.35, ge=0.0, le=1.0)

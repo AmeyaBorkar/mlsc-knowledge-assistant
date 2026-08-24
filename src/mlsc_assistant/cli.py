@@ -17,7 +17,8 @@ from rich.table import Table
 
 from mlsc_assistant.config import get_settings
 from mlsc_assistant.core.errors import MLSCError
-from mlsc_assistant.factories import make_chunker, make_embedder, make_store
+from mlsc_assistant.core.models import RetrievalStrategy
+from mlsc_assistant.factories import make_chunker, make_embedder, make_retriever, make_store
 from mlsc_assistant.ingestion.pipeline import build_index, current_checksums
 from mlsc_assistant.stores.numpy_store import NumpyVectorStore
 
@@ -29,6 +30,8 @@ app = typer.Typer(
 )
 console = Console()
 err_console = Console(stderr=True)
+
+SNIPPET_CHARS = 220
 
 
 def _fail(exc: MLSCError) -> None:
@@ -50,7 +53,8 @@ def index(
         bool, typer.Option("--force", help="Rebuild even if the index is already current.")
     ] = False,
     no_cache: Annotated[
-        bool, typer.Option("--no-cache", help="Ignore the embedding cache and re-embed everything.")
+        bool,
+        typer.Option("--no-cache", help="Ignore the embedding cache and re-embed everything."),
     ] = False,
     show_chunks: Annotated[
         bool, typer.Option("--show-chunks", help="Print every chunk after building.")
@@ -65,7 +69,8 @@ def index(
             if not existing.is_stale(current_checksums(settings)):
                 console.print(
                     f"[green]Index is current[/green] — {existing.chunk_count} chunks from "
-                    f"{existing.document_count} documents, built {existing.built_at:%Y-%m-%d %H:%M}."
+                    f"{existing.document_count} documents, "
+                    f"built {existing.built_at:%Y-%m-%d %H:%M}."
                 )
                 console.print("[dim]Use --force to rebuild anyway.[/dim]")
                 return
@@ -109,7 +114,100 @@ def index(
                 f"[dim]{chunk.kind.value}, ~{chunk.token_estimate} tokens, "
                 f"chars {chunk.char_range[0]}-{chunk.char_range[1]}[/dim]"
             )
-            console.print(f"  {chunk.text[:200]}{'...' if len(chunk.text) > 200 else ''}\n")
+            preview = chunk.text[:200] + ("..." if len(chunk.text) > 200 else "")
+            console.print("  " + " ".join(preview.split()))
+            console.print()
+
+
+@app.command()
+def search(
+    query: Annotated[str, typer.Argument(help="What to search the knowledge base for.")],
+    top_k: Annotated[int, typer.Option("--top-k", "-k", help="How many chunks to return.")] = 0,
+    strategy: Annotated[
+        str, typer.Option("--strategy", "-s", help="hybrid | dense | lexical")
+    ] = "",
+    explain: Annotated[
+        bool, typer.Option("--explain/--no-explain", help="Show each retriever's verdict.")
+    ] = True,
+    full: Annotated[bool, typer.Option("--full", help="Print whole chunks, not snippets.")] = False,
+    no_diversify: Annotated[
+        bool, typer.Option("--no-diversify", help="Disable the per-document cap.")
+    ] = False,
+) -> None:
+    """Retrieve chunks without generating an answer. No API key required.
+
+    The fastest way to tell whether a bad answer is a retrieval problem or a generation
+    problem, which is why it is a first-class command rather than a debug flag.
+    """
+    settings = get_settings()
+
+    try:
+        chosen = RetrievalStrategy(strategy) if strategy else None
+    except ValueError:
+        err_console.print(
+            f"[bold red]Invalid request[/bold red]: unknown strategy {strategy!r}. "
+            "Choose hybrid, dense or lexical."
+        )
+        raise typer.Exit(code=1) from None
+
+    try:
+        retriever = make_retriever(settings)
+        result = retriever.retrieve(
+            query,
+            top_k=top_k or None,
+            strategy=chosen,
+            # A cap at corpus size is equivalent to no cap at all.
+            max_chunks_per_document=retriever.corpus_size if no_diversify else None,
+        )
+    except MLSCError as exc:
+        _fail(exc)
+        return
+
+    if not result.chunks:
+        console.print(f"[yellow]No matches for[/yellow] {query!r}.")
+        console.print(
+            "[dim]Nothing in the knowledge base shares a term or a meaning with this query.[/dim]"
+        )
+        return
+
+    timings = "  ".join(f"{name} {ms:.1f}ms" for name, ms in result.timings_ms.items())
+    console.print()
+    console.print(
+        f"[bold]{result.strategy.value}[/bold] · {len(result.chunks)} of "
+        f"{result.candidates_considered} candidates · {timings}"
+    )
+    dense_top = result.top_dense_score
+    if dense_top is not None:
+        console.print(f"[dim]top cosine {dense_top:.3f} · margin {result.score_margin:.4f}[/dim]")
+    console.print(f"[dim]documents: {', '.join(result.documents_represented)}[/dim]")
+    console.print()
+
+    for sc in result.chunks:
+        console.print(
+            f"[bold cyan]{sc.rank}. {sc.chunk.chunk_id}[/bold cyan]  "
+            f"[dim]{sc.chunk.source_file}[/dim]  score [bold]{sc.score:.4f}[/bold]"
+        )
+
+        if explain:
+            parts: list[str] = []
+            if sc.dense_rank is not None and sc.dense_score is not None:
+                parts.append(f"dense #{sc.dense_rank} ({sc.dense_score:.3f})")
+            else:
+                parts.append("[dim]dense: miss[/dim]")
+            if sc.lexical_rank is not None and sc.lexical_score is not None:
+                parts.append(f"bm25 #{sc.lexical_rank} ({sc.lexical_score:.2f})")
+            else:
+                parts.append("[dim]bm25: miss[/dim]")
+            if sc.rrf_score is not None:
+                parts.append(f"rrf {sc.rrf_score:.5f}")
+            console.print("   " + " · ".join(parts))
+            if sc.matched_terms:
+                console.print(f"   [dim]matched stems: {', '.join(sc.matched_terms)}[/dim]")
+
+        text = sc.chunk.text
+        body = text if full else text[:SNIPPET_CHARS] + ("..." if len(text) > SNIPPET_CHARS else "")
+        console.print("   " + " ".join(body.split()))
+        console.print()
 
 
 @app.command()
@@ -123,7 +221,9 @@ def info() -> None:
     config_table.add_row("Embedder", f"{settings.embedding.backend}: {settings.embedding.model}")
     config_table.add_row("Store", settings.store.backend)
     config_table.add_row(
-        "Retrieval", f"{settings.retrieval.strategy}, top_k={settings.retrieval.top_k}"
+        "Retrieval",
+        f"{settings.retrieval.strategy}, top_k={settings.retrieval.top_k}, "
+        f"max {settings.retrieval.max_chunks_per_document}/doc",
     )
     config_table.add_row("LLM provider", settings.llm.provider)
     config_table.add_row("LLM model", settings.llm.resolved_model())
