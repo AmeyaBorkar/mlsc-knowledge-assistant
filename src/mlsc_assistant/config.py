@@ -10,6 +10,12 @@ Layered, in increasing order of precedence:
 Secrets never live in ``config.yaml``. API keys are read from their conventional
 environment variable names (``GOOGLE_API_KEY`` and friends) so that a key already
 exported for another tool just works.
+
+Note the two different jobs ``.env`` does here. pydantic-settings reads it to populate
+``MLSC_``-prefixed *settings fields*, but provider SDKs read ``os.environ`` directly and
+know nothing about this class. So ``.env`` is also loaded into the process environment
+at import, without overriding anything already exported — otherwise a key pasted into
+``.env`` would populate no field, reach no SDK, and silently look like no key at all.
 """
 
 from __future__ import annotations
@@ -19,11 +25,16 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config.yaml"
+
+# override=False: an explicitly exported variable beats the file, which is the
+# convention operators expect and what makes CI (no .env, real secrets) behave.
+load_dotenv(REPO_ROOT / ".env", override=False)
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +145,20 @@ class LLMConfig(BaseModel):
     timeout_s: float = 30.0
     max_retries: int = 3
     models: dict[str, str] = Field(default_factory=dict)
+
+    requests_per_minute: float | None = 15.0
+    """Client-side pacing. The Gemini free tier enforces both a per-minute and a per-day
+    quota; unpaced, an evaluation run exhausts the per-minute allowance in seconds and
+    then spends itself in backoff. Set to null on a paid tier."""
+
+    thinking_budget: int | None = 0
+    """Gemini reasoning-token budget. 0 disables thinking, None leaves the model default.
+
+    Measured in Phase 4: on a grounded abstention the verdict was identical with and
+    without thinking, but took 39s versus 1.18s. Grounded extraction is not a reasoning
+    task, and a 40-question evaluation run repeated per ablation makes that a 26-minute
+    versus 1-minute difference. Kept configurable so the assumption stays testable.
+    """
 
     def resolved_model(self) -> str:
         """Explicit model wins; otherwise fall back to the per-provider default."""

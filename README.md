@@ -6,11 +6,12 @@ base does not contain the answer** rather than inventing something plausible.
 
 Built for the MLSC AI/ML Domain Lead recruitment challenge.
 
-> **Status: Phases 0-3 complete.** Ingestion, chunking, embeddings, the index, hybrid retrieval
-> and the retrieval half of the evaluation harness are built, tested and measured. `mlsc index`,
-> `mlsc search` and `mlsc eval` all run with no API key. Generation, the API and LLM-judged
-> metrics are next. Real numbers in [`docs/EVALUATION.md`](docs/EVALUATION.md#results); what
-> went wrong along the way is in [`docs/PLAN.md`](docs/PLAN.md).
+> **Status: Phases 0-4 complete.** The full answering pipeline works: `mlsc ask` returns
+> grounded, cited answers and refuses when the knowledge base does not have the fact.
+> `mlsc index`, `mlsc search` and `mlsc eval` still run with no API key. The HTTP API, web UI
+> and LLM-judged metrics are next. Real numbers in
+> [`docs/EVALUATION.md`](docs/EVALUATION.md#results); what went wrong along the way is in
+> [`docs/PLAN.md`](docs/PLAN.md).
 
 ---
 
@@ -44,6 +45,10 @@ not name the person currently holding it.
 That second case is the interesting one. Retrieval scores *high* on that question — the
 leadership document discusses the Technical Head at length — so a similarity threshold alone
 cannot catch it. See [abstention](#abstention-knowing-when-to-refuse).
+
+**Measured across the 40-question dev set: hallucination rate 0.000, abstention F1 0.960,
+all 12 unanswerable questions refused.** A threshold alone leaves a hallucination rate of
+0.83; the second gate is what closes it.
 
 ---
 
@@ -150,8 +155,8 @@ cross-check. Reasoning for that, and full definitions, in
 
 ## Getting started
 
-`mlsc index`, `mlsc search`, `mlsc eval` and `mlsc info` work now, all without an API key.
-`ask` and `serve` arrive in Phases 4-5.
+`mlsc index`, `mlsc search`, `mlsc eval` and `mlsc info` work without an API key. `mlsc ask`
+needs one. `serve` arrives in Phase 5.
 
 ```bash
 git clone https://github.com/AmeyaBorkar/mlsc-knowledge-assistant

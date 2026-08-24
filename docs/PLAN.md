@@ -188,7 +188,7 @@ measured rather than argued — and Phase 7 has to show gate 2 actually closes t
 
 ---
 
-### Phase 4 — Generation *(~60 min)*
+### Phase 4 — Generation *(~60 min)* — **done**
 
 - `generation/providers/` — the `LLMProvider` port, a registry, and the Gemini adapter first
 - `generation/prompts.py` — versioned grounded-answering template
@@ -199,7 +199,40 @@ measured rather than argued — and Phase 7 has to show gate 2 actually closes t
 
 **Done when:** `mlsc ask "What are the responsibilities of a domain lead?"` answers with
 citations, and `mlsc ask "Who is the current Technical Head?"` refuses and explains that the KB
-describes the role without naming anyone. **Those two commands are the core demo.**
+describes the role without naming anyone. Both do.
+
+#### What this phase found
+
+**1. Gate 2 closes the gap Phase 3 left open — completely.** Hallucination rate went from
+**0.83 with gate 1 alone to 0.000** across the whole dev set, abstention F1 from 0.29 to 0.960,
+and every one of the 9 near-miss unanswerables was refused. Gate 1 caught 2 of 12; gate 2
+caught the other 10. One over-refusal (q25), on the question whose ambiguity the dataset notes
+had flagged in advance.
+
+**2. Gate 3 was implemented after all.** The plan scoped Phase 4 to gates 1 and 2, but leaving
+`verify_faithfulness` as a documented-but-dead parameter was worse than the extra work. It is
+off by default and costs a second call.
+
+**3. The free tier is far more constrained than assumed, and it changed the model choice.**
+`gemini-2.5-flash` stopped serving new keys mid-project (404, "no longer available to new
+users"). Its successor `gemini-3.5-flash` allows **5 requests per minute and only 20 per day** —
+a 40-question evaluation run cannot complete on it at all. `gemini-3.7-flash` took **55s** for a
+two-token reply under load. The shipped default is `gemini-3.1-flash-lite`: ~2s per answer, and
+it handled every hard abstention case correctly, including the adversarial one. Model selection
+here was driven by measured quota and latency, not by preference.
+
+**4. Two real bugs, both found by running the thing.**
+`LLMConfig.api_key()` read `os.environ`, but pydantic-settings loads `.env` into the settings
+*model* and never exports it — so a key pasted into `.env` was invisible to the provider, and
+the unit tests missed it because they used `monkeypatch.setenv`. And `with_retry` parsed the
+server's `retryDelay` only to decorate an error message while backing off on its own guess:
+three blind retries total ~7s against a 60-second quota window. Both fixed; the second is D13.
+
+**5. Thinking off is worth 30x.** Identical abstention verdict, 39s versus 1.18s (D14).
+
+**6. A prompt edit silently no-opped.** A patch script without an `assert old in s` guard made
+`str.replace` a no-op while still reporting success, and three rounds of "the model is ignoring
+my instruction" followed. The model had never seen it.
 
 ---
 

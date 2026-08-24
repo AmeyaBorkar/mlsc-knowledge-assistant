@@ -291,8 +291,60 @@ So the three-gate design is not a stylistic preference. **No threshold can catch
 leaves a hallucination rate of 0.83. Whether gate 2 actually closes that gap is the
 central question Phase 7 has to answer.
 
+### Abstention end to end — does gate 2 close the gap?
+
+Phase 3 left a hard test: gate 1 alone leaves a **hallucination rate of 0.83**, and no
+threshold can do better without refusing a third of real questions. Phase 4 ran the whole
+dev set through the answering pipeline to see whether gate 2 closes it.
+
+Model `gemini-3.1-flash-lite`, thinking disabled, hybrid retrieval, k=6, 40 questions,
+150s total (3.8s per question, mostly deliberate pacing).
+
+| Metric | Gate 1 only (Phase 3) | Gates 1 + 2 (Phase 4) |
+|---|---|---|
+| **Hallucination rate** | 0.83 | **0.000** |
+| Abstention recall | 0.17 | **1.000** |
+| Abstention precision | 1.00 | 0.923 |
+| Abstention F1 | 0.29 | **0.960** |
+| Over-refusal rate | 0.00 | 0.036 |
+| Near-miss unanswerables caught | 0 / 9 | **9 / 9** |
+| Off-domain unanswerables caught | 2 / 3 | **3 / 3** |
+
+**Every unanswerable question was refused, and nothing was fabricated.** This is the
+design's central claim, and it is the first point at which it is evidence rather than
+argument.
+
+Which gate did the work:
+
+| Gate | Refusals | What it caught |
+|---|---|---|
+| 1 — retrieval threshold | 2 | off-domain questions, at zero LLM cost |
+| 2 — context sufficiency | 10 | every near miss, plus one off-domain question scoring 0.62 |
+| 3 — faithfulness verify | not run | off by default; costs a second call |
+
+Gate 1 handled 2 of 12. Had it been the only mechanism the system would have answered the
+other 10 — including "who is the current Technical Head?" and "how many coordinators does
+each domain have?", where a nearby passage supplies a plausible decoy number. Gate 1 is
+worth keeping because it is free and forecloses hallucination entirely on the cases it
+catches, but it is not the abstention mechanism. Gate 2 is.
+
+**The one failure: q25**, "Can a first-year student contribute to a technical project at
+MLSC?" — refused when it should have been answered. The knowledge base never mentions
+first-year students; a correct answer has to generalise from "students do not need to be
+experts in every technology". The dataset notes flagged this ambiguity when the question
+was written, before any of it was run. It is over-caution rather than a wrong answer,
+which is the failure direction to prefer, but it is the honest 0.036 over-refusal rate and
+it is not rounded away.
+
+**What this does not show.** Abstention is measured; answer *quality* is not. Faithfulness,
+answer relevancy and correctness need an LLM judge and arrive in Phase 7. An answer can be
+grounded, cited and still wrong or incomplete, and nothing here would catch that.
+
+Raw per-question log: [`evaluation/reports/abstention-phase4.log`](../evaluation/reports/abstention-phase4.log).
+
 ### What this does not yet measure
 
-Faithfulness, answer relevancy, answer correctness, and the real abstention numbers all
-need an LLM and arrive in Phase 7. Everything above is the retrieval ceiling: it says
-what the generator will have to work with, not how well it uses it.
+Faithfulness, answer relevancy and answer correctness all need an LLM judge and arrive in
+Phase 7. The retrieval numbers say what the generator has to work with; the abstention
+numbers say when it declines to use it. Neither says whether the answers it *does* give
+are good.

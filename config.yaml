@@ -86,11 +86,28 @@ llm:
   temperature: 0.0              # grounded extraction, not creative writing
   max_output_tokens: 800
   timeout_s: 30
-  max_retries: 3
+  max_retries: 5                # transient 503s and 429s from Gemini are routine
+
+  # Client-side pacing. Measured on the free tier: gemini-3.5-flash allows 5 requests per
+  # minute AND only 20 per day, which makes a 40-question evaluation run impossible on it.
+  # The lite model has a far larger allowance. Set to null on a paid tier.
+  requests_per_minute: 15
+
+  # Gemini reasoning tokens. 0 = off. Measured: identical abstention verdict with and
+  # without thinking, 1.18s vs 39s. Set to null to restore the model's own default.
+  thinking_budget: 0
 
   # Per-provider defaults used when the provider is selected without an explicit model.
+  # Pinned versions, never the `-latest` aliases: an alias that silently changes model
+  # would invalidate every recorded evaluation metric without any visible cause.
+  #
+  # gemini-3.1-flash-lite rather than a full flash model, chosen on measured constraints
+  # rather than preference: gemini-3.5-flash allows only 20 free requests per DAY, so a
+  # single evaluation run cannot complete on it, and gemini-3.7-flash took 55s for a
+  # two-token reply. The lite model answers in ~2s and handled every hard abstention case
+  # correctly, including the adversarial one where a nearby passage supplies a decoy number.
   models:
-    gemini: gemini-2.5-flash
+    gemini: gemini-3.1-flash-lite
     anthropic: claude-haiku-4-5-20251001
     openai: gpt-4.1-mini
     groq: llama-3.3-70b-versatile

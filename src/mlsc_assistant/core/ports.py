@@ -178,18 +178,43 @@ class StreamingLLMProvider(LLMProvider, Protocol):
 
 
 class LLMResponse(Protocol):
-    text: str
-    input_tokens: int | None
-    output_tokens: int | None
-    latency_ms: float
+    """What a completion returns.
+
+    Declared as read-only properties rather than bare attributes: a Protocol attribute
+    must be settable to be satisfied, which would rule out the frozen dataclasses the
+    adapters actually return.
+    """
+
+    @property
+    def text(self) -> str: ...
+
+    @property
+    def input_tokens(self) -> int | None: ...
+
+    @property
+    def output_tokens(self) -> int | None: ...
+
+    @property
+    def latency_ms(self) -> float: ...
 
 
 class StructuredResponse(Protocol):
-    data: dict[str, Any]
-    raw_text: str
-    input_tokens: int | None
-    output_tokens: int | None
-    latency_ms: float
+    """A schema-constrained completion. ``data`` is already validated against the schema."""
+
+    @property
+    def data(self) -> dict[str, Any]: ...
+
+    @property
+    def raw_text(self) -> str: ...
+
+    @property
+    def input_tokens(self) -> int | None: ...
+
+    @property
+    def output_tokens(self) -> int | None: ...
+
+    @property
+    def latency_ms(self) -> float: ...
 
 
 # ---------------------------------------------------------------------------

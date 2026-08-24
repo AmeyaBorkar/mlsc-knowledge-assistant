@@ -238,3 +238,73 @@ frequency, where Okapi's IDF is precisely zero, and `exist`, which does not occu
 constant. On a much larger corpus a 50% ceiling would be far too permissive to matter, so this
 is a small-corpus adaptation and should be revisited if the knowledge base grows. Setting
 `max_document_frequency: 1.0` disables it, which is how the ablation was run.
+
+
+---
+
+## D12 — Pin model versions, never the `-latest` aliases
+
+**Context.** The configured `gemini-2.5-flash` stopped serving new keys partway through
+this project: the API returned `404 ... no longer available to new users`. Google offers
+`gemini-flash-latest`, which would have absorbed that change silently.
+
+**Decision.** `llm.models` names specific versions (`gemini-3.5-flash`). Aliases are never
+used.
+
+**Rejected.** *`gemini-flash-latest`* — convenient, and it would quietly swap the model
+underneath a recorded evaluation. Every metric in `docs/EVALUATION.md` is stamped with the
+model that produced it; an alias makes that stamp a lie, and a run comparison weeks apart
+would attribute a model change to whatever code was edited in between.
+
+**Cost.** Pinned versions go stale and eventually 404, exactly as this one did. That is the
+better failure: a loud error naming the setting to change, rather than results that drift.
+
+---
+
+## D13 — Pace requests client-side and obey the server's retry delay
+
+**Context.** The Gemini free tier allows **5 requests per minute** for this model. The
+first full evaluation run hit `429 RESOURCE_EXHAUSTED` almost immediately, and the retry
+logic did not save it: three exponential-backoff attempts total roughly 7 seconds against
+a 60-second quota window.
+
+Worse, the error carried `'retryDelay': '6s'` — the exact wait required — and the retry
+path ignored it. The value was being parsed only to decorate an error message.
+
+**Decision.** Two changes. `with_retry` now prefers a provider-advertised delay over its
+own guess, capped so an absurd figure surfaces as a failure rather than a silent hour-long
+hang. And a `RateLimiter` paces outbound calls to `llm.requests_per_minute`.
+
+**Rejected.** *Backoff alone* — measured to be insufficient. *A token bucket* — it would
+let a run burst through the allowance and then stall, which is the behaviour that failed;
+a flat minimum interval is what the quota actually rewards. *Ignoring the limit and
+retrying harder* — turns a paced 8-minute run into a longer one that also produces
+meaningless latency numbers.
+
+**Cost.** A 40-question run takes about 8 minutes on the free tier and the wall clock is
+dominated by deliberate sleeping, so latency figures measure pacing rather than the model.
+Set `requests_per_minute: null` on a paid tier. This is also why the evaluation harness
+caches judge verdicts (D7) — re-running a report must not re-pay this cost.
+
+---
+
+## D14 — Thinking is disabled for grounded extraction
+
+**Context.** Gemini's flash models reason before answering by default. Grounded extraction
+with an abstention decision is a reading-comprehension task over ~700 tokens of supplied
+context, not a reasoning problem.
+
+**Decision.** `llm.thinking_budget: 0`.
+
+**Measured.** On the same abstention question the verdict was identical with and without
+thinking, at **39s versus 1.18s**. Thinking tokens are billed and are invisible in
+`candidates_token_count`, so the adapter folds them into the reported output count to keep
+cost honest when it is enabled.
+
+**Rejected.** *Leaving the model default* — pays 30x latency for an unchanged answer, and
+against a 5-requests-per-minute quota that compounds with D13 into runs long enough to
+discourage re-running them, which is how evaluation discipline erodes.
+
+**Cost.** Genuinely hard multi-hop questions might benefit from reasoning. It is a config
+value precisely so that claim can be tested rather than assumed, and Phase 7 has the
+harness to test it.

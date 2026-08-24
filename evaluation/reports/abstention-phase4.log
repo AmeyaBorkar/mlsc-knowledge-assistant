@@ -1,0 +1,57 @@
+thinking_budget=0  model=gemini-3.1-flash-lite  40 questions
+
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+  ok  q01 direct          gate=-    The technical domains in MLSC include Artificial Intelligence and Mach
+  ok  q02 direct          gate=-    Domain leads are responsible for planning the learning roadmap for the
+  ok  q03 direct          gate=-    Each technical domain has two domain leads.
+  ok  q04 direct          gate=-    The AI/ML domain focuses on machine learning, deep learning, natural l
+  ok  q05 direct          gate=-    The Web3 domain focuses on blockchain technologies, decentralized appl
+  ok  q06 direct          gate=-    Under the MLSC code of conduct, harassment, discrimination, plagiarism
+  ok  q07 direct          gate=-    Violation of the code of conduct may result in removal from specific a
+  ok  q08 direct          gate=-    Participants in MLSC hackathons generally progress through several sta
+  ok  q09 direct          gate=-    Participants are generally evaluated based on factors such as innovati
+  ok  q10 direct          gate=-    Coordinator positions are filled through the MLSC recruitment process.
+  ok  q11 direct          gate=-    No, being a member does not automatically make a student a coordinator
+  ok  q12 direct          gate=-    Microsoft Learn Student Community (MLSC) VIT Pune is a student-led tec
+  ok  q13 direct          gate=-    The Technical Head is responsible for coordinating the technical domai
+  ok  q14 direct          gate=-    Second-year coordinators are expected to gradually take on more respon
+  ok  q15 multi_document  gate=-    Technical domains support hackathons through preparation activities, s
+  ok  q16 multi_document  gate=-    Domain leads are responsible for encouraging participation in hackatho
+  ok  q17 multi_document  gate=-    Students begin by participating in MLSC activities as community member
+  ok  q18 multi_document  gate=-    MLSC collaborates with external technology communities, industry profe
+  ok  q19 multi_document  gate=-    MLSC supports students by creating an environment focused on learning 
+  ok  q20 multi_document  gate=-    Coordinators work under the guidance of domain leads. Domain leads are
+  ok  q21 reasoning       gate=-    A hackathon project might require people from multiple domains because
+  ok  q22 reasoning       gate=-    A good domain lead should be able to explain technical concepts clearl
+  ok  q23 reasoning       gate=-    As a member, you are encouraged to attend technical sessions and parti
+  ok  q24 reasoning       gate=-    MLSC aims to foster an environment where students learn technologies t
+  BAD q25 reasoning       gate=g2   The knowledge base covers the general eligibility and participation re
+  ok  q26 ambiguous       gate=-    At MLSC, you can work on areas including artificial intelligence, mach
+  ok  q27 ambiguous       gate=-    In the MLSC technical team, each technical domain is managed by two do
+  ok  q28 ambiguous       gate=-    Members are expected to maintain a respectful and inclusive environmen
+  ok  q29 unanswerable    gate=g2   The knowledge base describes the role and responsibilities of the Tech
+  ok  q30 unanswerable    gate=g2   The knowledge base covers the benefits and participation opportunities
+  ok  q31 unanswerable    gate=g2   The knowledge base covers the focus areas of the Web Development domai
+  ok  q32 unanswerable    gate=g2   The knowledge base covers the hierarchical structure of the technical 
+  ok  q33 unanswerable    gate=g2   The knowledge base covers the criteria for becoming a coordinator and 
+  ok  q34 unanswerable    gate=g2   The knowledge base covers the types of activities MLSC organizes, incl
+  ok  q35 unanswerable    gate=g2   The knowledge base covers the purpose, activities, and organizational 
+  ok  q36 unanswerable    gate=g2   The knowledge base covers the roles available within MLSC and the expe
+  ok  q37 unanswerable    gate=g2   The knowledge base covers the roles, technical domains, and code of co
+  ok  q38 unanswerable    gate=g1   I could not find anything in the MLSC knowledge base related to that q
+  ok  q39 unanswerable    gate=g1   I could not find anything in the MLSC knowledge base related to that q
+  ok  q40 unanswerable    gate=g2   The knowledge base covers the roles available within MLSC and the type
+
+--- 150s total, 3.8s/question ---
+abstention precision : 0.923
+abstention recall    : 1.000
+abstention F1        : 0.960
+HALLUCINATION RATE   : 0.000   (gate 1 alone was 0.83)
+over-refusal rate    : 0.036
+
+failures:
+  q25 [reasoning/] gate=g2: The knowledge base covers the general eligibility and participation requirements for MLS
+
+near_miss: caught 9/9
+
+off_domain: caught 3/3

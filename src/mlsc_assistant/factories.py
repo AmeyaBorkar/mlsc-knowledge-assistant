@@ -15,9 +15,11 @@ from typing import cast
 from mlsc_assistant.config import Settings
 from mlsc_assistant.core.errors import ConfigurationError
 from mlsc_assistant.core.models import IndexManifest, RetrievalStrategy
-from mlsc_assistant.core.ports import Chunker, Embedder, VectorStore
+from mlsc_assistant.core.ports import Chunker, Embedder, LLMProvider, VectorStore
 from mlsc_assistant.embeddings.cache import FileEmbeddingCache, NullEmbeddingCache
 from mlsc_assistant.embeddings.fastembed_embedder import FastEmbedEmbedder
+from mlsc_assistant.generation.answerer import GroundedAnswerer
+from mlsc_assistant.generation.providers.registry import build_provider
 from mlsc_assistant.ingestion.chunker import StructuralChunker
 from mlsc_assistant.retrieval.retriever import HybridRetriever
 from mlsc_assistant.stores.numpy_store import NumpyVectorStore
@@ -132,4 +134,27 @@ def make_retriever(
         bm25_b=cfg.bm25.b,
         bm25_index_title=cfg.bm25.index_title,
         bm25_max_document_frequency=cfg.bm25.max_document_frequency,
+    )
+
+
+def make_provider(settings: Settings) -> LLMProvider:
+    """Construct the configured generation backend."""
+    return build_provider(settings.llm)
+
+
+def make_answerer(
+    settings: Settings,
+    *,
+    retriever: HybridRetriever | None = None,
+    provider: LLMProvider | None = None,
+) -> GroundedAnswerer:
+    """Assemble the full question-answering pipeline.
+
+    Collaborators are injectable so the evaluation harness can hold one retriever and
+    one provider across a whole run instead of rebuilding them per question.
+    """
+    return GroundedAnswerer(
+        retriever=retriever if retriever is not None else make_retriever(settings),
+        provider=provider if provider is not None else make_provider(settings),
+        settings=settings,
     )

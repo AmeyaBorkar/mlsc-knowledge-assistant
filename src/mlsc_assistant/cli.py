@@ -258,10 +258,13 @@ def info() -> None:
     console.print(Panel(index_table, title="[bold]Index[/bold]", border_style="blue"))
 
 
-# `eval` lives in evaluation/cli_commands.py so that `mlsc index` and `mlsc search` do
-# not import the evaluation tree. Registered here to keep one CLI surface.
+# `ask` and `eval` live beside the subsystems they drive, so that `mlsc index` and
+# `mlsc search` import neither a provider SDK nor the evaluation tree. Registered here
+# to keep a single CLI surface.
 from mlsc_assistant.evaluation.cli_commands import eval_command  # noqa: E402
+from mlsc_assistant.generation.cli_commands import ask_command  # noqa: E402
 
+app.command(name="ask")(ask_command)
 app.command(name="eval")(eval_command)
 
 
