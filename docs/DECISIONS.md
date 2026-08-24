@@ -11,7 +11,7 @@ decision makes worse, because every one of them does something worse).
 
 ## D1 — Hybrid retrieval (BM25 + dense) fused with RRF
 
-**Context.** 6 documents, ~40 chunks. The vocabulary contains rare exact terms — `Web3`,
+**Context.** 6 documents, 18 chunks. The vocabulary contains rare exact terms — `Web3`,
 `Technical Head`, `code of conduct`, `second-year coordinators` — that a small dense embedder
 tends to smear into neighbouring concepts. It also contains near-synonymous prose where lexical
 matching alone would fail ("how are hackathon entries scored" vs "judging criteria").
@@ -21,7 +21,7 @@ matching alone would fail ("how are hackathon entries scored" vs "judging criter
 
 **Rejected.** *Dense-only* — the default reflex, and it loses exact rare terms in a corpus with
 no redundancy to fall back on. *Weighted score blend* — cosine and BM25 live on incompatible,
-corpus-dependent scales, and with 40 chunks there is not enough data to fit a blending weight
+corpus-dependent scales, and with 18 chunks there is not enough data to fit a blending weight
 honestly; RRF uses ranks only, so it is scale-free with one interpretable constant.
 
 **Cost.** Two indexes to keep in sync, and RRF discards score *magnitude* — a chunk that both
@@ -32,7 +32,7 @@ on. The retrieval gate compensates by reading raw dense scores, not fused ranks.
 
 ## D2 — NumPy as the default vector store, Chroma as an adapter
 
-**Context.** The entire corpus embeds to a `40 x 384` float matrix, about 60 KB.
+**Context.** The entire corpus embeds to an `18 x 384` float matrix, about 28 KB.
 
 **Decision.** Default store is an in-memory NumPy matrix persisted as `.npz`. `VectorStore`
 remains a real port with a Chroma adapter behind an optional extra.

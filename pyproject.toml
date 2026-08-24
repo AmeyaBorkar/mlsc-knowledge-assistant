@@ -7,7 +7,7 @@ name = "mlsc-knowledge-assistant"
 version = "0.1.0"
 description = "A grounded, citation-first RAG assistant over the MLSC knowledge base."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Ameya Borkar" }]
 keywords = ["rag", "retrieval", "llm", "evaluation", "mlsc"]
@@ -64,7 +64,7 @@ packages = ["src/mlsc_assistant"]
 # ---------------------------------------------------------------------------
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -76,7 +76,8 @@ ignore = ["E501"]  # line length is handled by the formatter
 
 # ---------------------------------------------------------------------------
 [tool.mypy]
-python_version = "3.10"
+plugins = ["pydantic.mypy"]
+python_version = "3.12"
 packages = ["mlsc_assistant"]
 mypy_path = "src"
 strict = true
@@ -84,7 +85,14 @@ warn_unreachable = true
 disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
-module = ["fastembed.*", "rank_bm25.*", "chromadb.*", "ragas.*"]
+module = ["fastembed.*", "rank_bm25.*", "chromadb.*", "ragas.*", "sentence_transformers.*"]
+ignore_missing_imports = true
+
+# Optional adapters behind extras. factories.py imports them lazily and converts a
+# missing one into a ConfigurationError naming the extra to install, so their absence
+# from a default install is expected rather than an error.
+[[tool.mypy.overrides]]
+module = ["mlsc_assistant.embeddings.sbert_embedder", "mlsc_assistant.stores.chroma_store"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------

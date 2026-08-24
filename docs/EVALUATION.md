@@ -1,7 +1,7 @@
 # Evaluation methodology
 
-> Status: **design, pre-implementation**. Metric definitions and the justification for each.
-> Results are appended to this document once the harness runs.
+> Status: **design**. Metric definitions and the justification for each; the harness is built
+> in Phases 3 and 7. Results are appended to this document once it runs.
 
 The brief asks for context precision, context recall, answer relevancy and faithfulness, and
 says we must be able to justify the metrics we report. This document is that justification.
@@ -42,7 +42,7 @@ they are exactly reproducible and can run in CI.
 system to that k. The precision/recall tradeoff across k is also how `top_k` gets chosen: more
 context raises recall and lowers precision, and the crossover is an empirical question.
 
-**k matters unusually much here.** With ~40 chunks, `k=10` is a quarter of the entire corpus —
+**k matters unusually much here.** With 18 chunks, `k=10` is over half the entire corpus —
 at that point "retrieval" barely narrows anything and precision collapses by construction. That
 alone argues for a small k, and the sweep will show where.
 
@@ -103,7 +103,7 @@ Design claims should be measured, not asserted. Each of these is one run:
 | dense-only vs lexical-only vs hybrid | that fusion beats both components (section 5 of ARCHITECTURE) |
 | with vs without contextual chunk headers | that prefixing the document title improves recall on pronoun-headed paragraphs |
 | with vs without per-document diversification | that diversification is what moves multi-document coverage |
-| `top_k` in {3, 5, 6, 10} | where the precision/recall crossover sits on a 40-chunk corpus |
+| `top_k` in {3, 5, 6, 10} | where the precision/recall crossover sits on an 18-chunk corpus |
 | retrieval gate on vs off | how much of the abstention behaviour is the cheap gate rather than the model |
 
 If an ablation shows a component does not help, **it gets removed and the negative result is

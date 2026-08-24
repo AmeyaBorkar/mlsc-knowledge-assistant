@@ -15,7 +15,7 @@ would then have to be defended in the interview.
 
 ---
 
-### Phase 0 — Foundations *(~30 min)*
+### Phase 0 — Foundations *(~30 min)* — **done**
 
 Config, domain models, ports, error types, CLI skeleton, CI.
 
@@ -28,7 +28,7 @@ Config, domain models, ports, error types, CLI skeleton, CI.
 
 ---
 
-### Phase 1 — Ingestion and indexing *(~60 min)*
+### Phase 1 — Ingestion and indexing *(~60 min)* — **done**
 
 - `ingestion/loader.py` — read `data/knowledge_base/*.txt`, extract the title from line 1,
   checksum each document
@@ -42,9 +42,26 @@ Config, domain models, ports, error types, CLI skeleton, CI.
 pin the chunk boundaries for `domains.txt` and `leadership.txt` — the two documents whose lists
 must not be split.
 
-**Risk to retire here:** confirm fastembed installs cleanly on Python 3.13 / Windows. If the
-ONNX wheel misbehaves, fall back to the sentence-transformers adapter (D3) — the port makes this
-a config change, but finding out in phase 1 rather than phase 5 is the point.
+**Risk retired:** fastembed 0.8.0 installs and runs cleanly on Python 3.13 / Windows. No
+fallback to sentence-transformers needed.
+
+**What this phase actually produced:** 6 documents to **18 chunks**, both list blocks intact.
+Three findings worth carrying forward:
+
+1. **bge-small has a high similarity floor.** Two entirely unrelated passages from this corpus
+   (the domain list vs the hackathon judging paragraph) embed to cosine **0.65**. The intuition
+   that "unrelated scores near zero" is false for this model, so the abstention threshold cannot
+   be hand-picked — the placeholder 0.35 would never fire. Pinned by a test that fails if the
+   floor moves.
+2. **Merge policy had to be rewritten once.** A bidirectional rule that merged whenever *either*
+   neighbour was short cascaded, because every paragraph in this corpus is individually under the
+   floor — `about_mlsc.txt` collapsed into a single chunk. Replaced with a greedy accumulator that
+   stops growing at the floor. Regression test added.
+3. **Two latent bugs, both caught by tests rather than by reading.** `FileEmbeddingCache` defines
+   `__len__`, so an empty cache was falsy and `cache or NullEmbeddingCache()` silently disabled
+   caching on exactly the cold-start run that needed it. And a pinned `llm.model` in `config.yaml`
+   survived a provider override through deep-merging, so `MLSC_LLM__PROVIDER=anthropic` would have
+   called Anthropic with a Gemini model name.
 
 ---
 

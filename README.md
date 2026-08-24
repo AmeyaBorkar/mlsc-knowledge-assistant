@@ -6,9 +6,10 @@ base does not contain the answer** rather than inventing something plausible.
 
 Built for the MLSC AI/ML Domain Lead recruitment challenge.
 
-> **Status: design phase.** The architecture, API contract and evaluation methodology are
-> complete and documented. Implementation is in progress — see [`docs/PLAN.md`](docs/PLAN.md)
-> for build order and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design.
+> **Status: Phases 0-1 complete.** Ingestion, structure-aware chunking, embeddings and the
+> vector index are built, tested and runnable — `mlsc index` works today with no API key.
+> Retrieval, generation, the API and the evaluation harness are next; see
+> [`docs/PLAN.md`](docs/PLAN.md) for build order.
 
 ---
 
@@ -69,8 +70,8 @@ question
 
 Four things worth knowing up front:
 
-**The corpus is tiny — 6 documents, ~40 chunks — and that drove every decision.** No vector
-database (a `40 x 384` NumPy dot product is faster than any network hop), but hybrid retrieval,
+**The corpus is tiny — 6 documents, 18 chunks — and that drove every decision.** No vector
+database (an `18 x 384` NumPy dot product is faster than any network hop), but hybrid retrieval,
 because rare exact terms like `Web3` and `Technical Head` are exactly where small dense embedders
 blur and there is no redundancy in the corpus to recover from a miss.
 
@@ -132,7 +133,8 @@ cross-check. Reasoning for that, and full definitions, in
 
 ## Getting started
 
-> Not yet runnable — these are the commands the implementation is being written against.
+`mlsc index`, `mlsc info` and the test suite work now. `search`, `ask` and `serve` arrive in
+Phases 2-5.
 
 ```bash
 git clone https://github.com/AmeyaBorkar/mlsc-knowledge-assistant

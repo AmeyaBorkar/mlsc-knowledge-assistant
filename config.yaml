@@ -26,6 +26,7 @@ embedding:
   dimension: 384
   batch_size: 32
   cache_dir: data/cache/embeddings
+  models_dir: data/cache/models    # ONNX model cache, kept in-repo rather than system temp
 
 store:
   backend: numpy                # numpy | chroma
@@ -41,22 +42,35 @@ retrieval:
     k1: 1.5
     b: 0.75
   rerank:
-    enabled: false              # a 40-chunk corpus cannot justify the latency
+    enabled: false              # an 18-chunk corpus cannot justify the latency
     backend: llm
 
 abstention:
-  # Gate 1 — retrieval threshold. PLACEHOLDER: calibrated in phase 7 via `mlsc calibrate`,
-  # which sweeps this value and reports the abstention precision/recall curve.
-  # The committed value must be one chosen from that curve, with the rationale
-  # written into docs/EVALUATION.md. Do not hand-tune it.
+  # Gate 1 — retrieval threshold. PLACEHOLDER, and `calibrated: false` says so.
+  #
+  # Measured on this corpus: two entirely unrelated passages (the domain list vs the
+  # hackathon judging paragraph) embed to cosine 0.65 under bge-small. The intuition
+  # that "unrelated scores near zero" is simply false for this model, so a hand-picked
+  # 0.35 would never fire and the gate would be decorative.
+  #
+  # `mlsc calibrate` sweeps this value across the evaluation set and reports the
+  # abstention precision/recall curve. The committed value must come from that sweep,
+  # with its rationale in docs/EVALUATION.md, and `calibrated` flipped to true.
   min_dense_score: 0.35
   min_score_margin: 0.0         # gap between rank 1 and rank 2; 0 disables the check
+  calibrated: false
   require_sufficient_context: true    # gate 2
   verify_faithfulness: false          # gate 3 — costs an extra call
 
 llm:
   provider: gemini              # gemini | anthropic | openai | groq | ollama
-  model: gemini-2.5-flash
+
+  # `model` is intentionally left unset. Config sources deep-merge, so a pinned model
+  # here would survive a provider override — `MLSC_LLM__PROVIDER=anthropic` would then
+  # try to call Anthropic with a Gemini model name. Leaving it unset lets the per-provider
+  # `models` map below resolve the default. Set it only to pin one specific model.
+  # model: gemini-2.5-flash
+
   temperature: 0.0              # grounded extraction, not creative writing
   max_output_tokens: 800
   timeout_s: 30

@@ -1,6 +1,7 @@
 # Architecture
 
-> Status: **design, pre-implementation**. This document is the plan the code is written against.
+> Status: sections 1-4 are **implemented** (ingestion, chunking, embeddings, index); sections
+> 5-7 are still design. Measured numbers below come from the real corpus.
 
 ## 1. What the system has to do
 
@@ -17,15 +18,15 @@ From the challenge brief, restated as testable obligations:
 
 ## 2. The single most important design constraint
 
-**The corpus is tiny: 6 documents, ~6 KB, roughly 40 paragraphs.**
+**The corpus is tiny: 6 documents, ~6 KB, 40 paragraphs that merge into 18 chunks.**
 
 This is not an afterthought. It determines almost every decision below, and being explicit
 about it is more honest than pretending we are building for a million documents:
 
-- Similarity search over a `40 x 384` matrix is a sub-millisecond NumPy dot product. A vector
+- Similarity search over a `18 x 384` matrix is a sub-millisecond NumPy dot product. A vector
   database buys us nothing at this scale, so the **default store is NumPy**, and a Chroma
   adapter exists to prove the port is real rather than because we need it.
-- With so few chunks, **one bad retrieval is ~2.5% of the corpus** and will visibly move any
+- With so few chunks, **one bad retrieval is 5.6% of the corpus** and will visibly move any
   metric. Retrieval quality matters enormously; retrieval speed does not matter at all.
 - Rare exact terms (`Web3`, `Technical Head`, `second-year coordinators`) are precisely where
   small dense embedders blur meanings together. **Lexical matching is not legacy baggage here,
@@ -126,8 +127,12 @@ is therefore **structure-aware rather than character-count-blind**:
    `leadership.txt` a bulleted list of lead responsibilities. Splitting either would make
    "what domains exist in MLSC" unanswerable from any single chunk. The chunker treats a run of
    list items, together with the sentence introducing it, as one atomic chunk.
-3. **Merge short orphans** up to a floor of roughly 40 tokens, so one-line paragraphs do not
-   become noisy, low-information vectors.
+3. **Merge short orphans** up to a floor of 40 tokens, so one-line paragraphs do not become
+   noisy, low-information vectors. Merging is a greedy accumulator that stops growing once the
+   buffer reaches the floor — every paragraph in this corpus is individually under it, so a rule
+   that merged whenever *either* neighbour was short collapsed whole documents into one chunk.
+   One block still sits under the floor (`domains::c00`): an opening paragraph followed
+   immediately by a list, so it has no mergeable neighbour on either side.
 4. **Contextual header at embed time.** Each chunk is embedded as `"{doc_title} - {chunk_text}"`
    while the *stored* text stays clean for display and for citation offsets. This is the
    cheapest available fix for pronoun-headed paragraphs.
@@ -158,7 +163,7 @@ query
 **Why RRF instead of a weighted score blend?** Cosine similarity and BM25 scores live on
 incompatible, corpus-dependent scales, so any fixed `alpha * dense + (1 - alpha) * bm25` needs
 re-tuning whenever the corpus changes. RRF consumes only *ranks*, so it is scale-free and has a
-single interpretable constant. On a 40-chunk corpus there is nowhere near enough data to fit a
+single interpretable constant. On an 18-chunk corpus there is nowhere near enough data to fit a
 blending weight honestly.
 
 **Multi-document questions (R4)** get two mechanisms:
@@ -254,4 +259,4 @@ The brief forbids it, so it is enforced rather than promised:
 
 Recorded so they read as decisions rather than oversights: query caching, multi-tenancy, auth
 on the API, conversational multi-turn memory, incremental re-indexing, and a cross-encoder
-reranker (a 40-chunk corpus cannot justify the latency).
+reranker (an 18-chunk corpus cannot justify the latency).

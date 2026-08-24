@@ -1,13 +1,10 @@
 name: CI
 
-# Automatic triggers are enabled in Phase 0, once there is source and a test suite
-# to run (see docs/PLAN.md). Until then this is manual-only, so the repo does not
-# carry a failing badge for work that has not been written yet.
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [main]
-  # pull_request:
+  push:
+    branches: [main]
+  pull_request:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -35,7 +32,9 @@ jobs:
         run: mypy
 
       - name: Tests
-        run: pytest --cov=mlsc_assistant --cov-report=term-missing
+        # Integration tests download a 130 MB model; they run in the job below, which
+        # caches it. This job stays fast so lint/type feedback is not held up by a download.
+        run: pytest -m "not integration" --cov=mlsc_assistant --cov-report=term-missing
 
   retrieval-gate:
     name: Retrieval quality gate
@@ -62,5 +61,9 @@ jobs:
       - name: Build index
         run: mlsc index
 
-      - name: Retrieval metrics
-        run: mlsc eval --metrics retrieval --fail-under recall_at_k=0.80
+      - name: Integration tests against the real embedding model
+        run: pytest -m integration
+
+      # Phase 3 replaces this with the real gate:
+      #   mlsc eval --metrics retrieval --fail-under recall_at_k=0.80
+      # It needs the evaluation set, which does not exist yet.
