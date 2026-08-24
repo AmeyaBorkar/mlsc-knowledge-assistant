@@ -7,27 +7,31 @@
 <style>
 /* ---------------------------------------------------------------------------
    Monochrome by construction: no hue anywhere. Emphasis comes from weight,
-   scale and opacity, which is also why the refusal state reads as considered
-   rather than as an error — there is no red available to make it look broken.
+   scale and opacity, which is also why a refusal cannot be made to look like an
+   error — there is no red available to do it with.
+
+   Every text colour below clears WCAG AA (4.5:1) against the background. The
+   previous --faint sat at 2.93:1 and was used for every small label, monospace
+   caption and file name on the page.
 
    Self-contained on purpose. No webfont, no CDN. The retrieval half of this
-   system runs without a network; the page that demonstrates it should too.
+   system runs without a network; the page demonstrating it should too.
 --------------------------------------------------------------------------- */
 :root {
-  --bg: #08080a;
-  --surface: #0f0f12;
-  --raised: #16161a;
-  --line: #232328;
-  --text: #f4f4f5;
-  --dim: #8b8b93;
-  --faint: #5a5a63;
+  --bg: #0b0b0d;
+  --panel: #121215;
+  --raised: #191920;
+  --line: #2b2b33;
+  --line-soft: #1e1e24;
+  --text: #f7f7f8;      /* 18.4:1 */
+  --dim: #b6b6be;       /*  9.8:1 */
+  --faint: #90909a;     /*  6.2:1 */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
   --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -41,115 +45,73 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Fine grain over a flat black, so large empty areas read as a surface
-   rather than as a void. */
 body::after {
   content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 100;
-  opacity: 0.022;
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 100;
+  opacity: 0.018;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-.shell { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+.shell { max-width: 1000px; margin: 0 auto; padding: 0 28px; }
+
+:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; border-radius: 3px; }
 
 /* --- masthead ------------------------------------------------------------ */
 
-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 26px 0 0;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 18px;
-}
+header { padding: 26px 0 18px; border-bottom: 1px solid var(--line); }
 .mark {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--dim);
 }
-.status {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--faint);
-  letter-spacing: 0.04em;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.pulse {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--faint);
-  animation: breathe 2.6s var(--ease) infinite;
-}
-.status[data-ok="true"] .pulse { background: var(--text); }
-@keyframes breathe { 0%,100% { opacity: .25; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
 
 /* --- hero ---------------------------------------------------------------- */
 
-.hero { padding: clamp(48px, 11vh, 118px) 0 0; }
+.hero { padding: clamp(44px, 10vh, 104px) 0 0; }
 
 h1 {
-  font-size: clamp(3.2rem, 13.5vw, 10.5rem);
+  font-size: clamp(3rem, 12.5vw, 9.5rem);
   font-weight: 900;
   letter-spacing: -0.055em;
-  line-height: 0.84;
-  margin-bottom: 20px;
+  line-height: 0.85;
+  margin-bottom: 22px;
 }
-/* Every entrance animation below animates *from* a hidden state to the
-   element's natural one, with `backwards` fill rather than `forwards`.
-
-   The obvious way round — resting at `opacity: 0` and animating to 1 — makes
-   visibility depend on the animation actually running. It does not always: browsers
-   throttle animation timers in background tabs and on low-power devices, and this
-   page rendered a blank hero under a throttled headless browser for exactly that
-   reason. Animating from hidden means the worst case is content that appears
-   without motion, never content that never appears. */
-h1 .word {
-  display: inline-block;
-  animation: rise 1.15s var(--ease) backwards;
-}
+/* Entrance animations run *from* hidden to the element's natural state, with
+   `backwards` fill. Resting at opacity 0 and animating to 1 makes visibility
+   depend on the animation running — browsers throttle animation timers in
+   background tabs, and this page rendered a blank hero because of it. */
+h1 .word { display: inline-block; animation: rise 1.15s var(--ease) backwards; }
 h1 .word:nth-child(2) { animation-delay: 0.08s; }
 h1 .dim { color: var(--faint); }
 @keyframes rise { from { opacity: 0; transform: translateY(0.34em) rotate(1.6deg); } }
 
 .lede {
-  font-size: clamp(1rem, 2.1vw, 1.28rem);
+  font-size: clamp(1rem, 2vw, 1.2rem);
   color: var(--dim);
-  max-width: 52ch;
+  max-width: 50ch;
   animation: fade 1s var(--ease) 0.24s backwards;
 }
 @keyframes fade { from { opacity: 0; transform: translateY(14px); } }
 .lede strong { color: var(--text); font-weight: 600; }
 
-/* Collapse the hero once a question has been asked, so the answer owns the
-   viewport instead of competing with a giant wordmark. */
-[data-state="asked"] .hero { padding-top: 26px; }
-[data-state="asked"] h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); line-height: 1; margin-bottom: 8px; }
+[data-state="asked"] .hero { padding-top: 24px; }
+[data-state="asked"] h1 { font-size: clamp(1.5rem, 3.6vw, 2.2rem); line-height: 1; margin-bottom: 6px; }
 [data-state="asked"] .lede { display: none; }
 .hero, h1 { transition: padding .8s var(--ease), font-size .8s var(--ease), margin .8s var(--ease); }
 
 /* --- ask ----------------------------------------------------------------- */
 
-.ask { margin: clamp(30px, 5vh, 52px) 0 0; animation: fade 1s var(--ease) 0.36s backwards; }
+.ask { margin: clamp(28px, 4.5vh, 46px) 0 0; animation: fade 1s var(--ease) 0.36s backwards; }
 
 .field { position: relative; display: flex; align-items: center; gap: 14px; }
 
 #q {
-  flex: 1;
-  background: none;
-  border: none;
-  color: var(--text);
+  flex: 1; background: none; border: none; color: var(--text);
   font-family: inherit;
-  font-size: clamp(1.15rem, 3.1vw, 1.9rem);
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  padding: 14px 0;
-  outline: none;
+  font-size: clamp(1.1rem, 2.9vw, 1.75rem);
+  font-weight: 500; letter-spacing: -0.02em;
+  padding: 14px 0; outline: none;
 }
 #q::placeholder { color: var(--faint); }
 
@@ -163,164 +125,183 @@ h1 .dim { color: var(--faint); }
 .field:focus-within .rule::after { transform: scaleX(1); }
 
 button.go {
-  background: var(--text);
-  color: var(--bg);
-  border: none;
-  border-radius: 999px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 12px 24px;
-  cursor: pointer;
-  white-space: nowrap;
+  background: var(--text); color: var(--bg);
+  border: none; border-radius: 999px;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  padding: 12px 26px; cursor: pointer; white-space: nowrap;
   transition: transform .35s var(--ease), opacity .25s;
 }
 button.go:hover:not(:disabled) { transform: translateY(-2px); }
-button.go:disabled { opacity: .3; cursor: not-allowed; }
+button.go:disabled { opacity: .35; cursor: not-allowed; }
 
-.examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
-.examples button {
-  background: none;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--dim);
-  font-family: inherit;
-  font-size: 12.5px;
-  padding: 7px 14px;
-  cursor: pointer;
-  transition: color .3s, border-color .3s, transform .3s var(--ease);
+/* Examples get their own labelled group rather than floating loose under the
+   input, so it reads as a deliberate set of four contrasting cases. */
+.try { margin-top: 28px; }
+.try-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--faint); margin-bottom: 12px;
 }
-.examples button:hover { color: var(--text); border-color: var(--dim); transform: translateY(-1px); }
-.examples button::before { content: attr(data-tag); color: var(--faint); margin-right: 7px; font-family: var(--mono); font-size: 10px; }
+.examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 8px; }
+.examples button {
+  display: flex; align-items: baseline; gap: 11px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line-soft); border-radius: 8px;
+  color: var(--dim); font-family: inherit; font-size: 14px;
+  padding: 12px 15px; cursor: pointer;
+  transition: color .3s, border-color .3s, background .3s, transform .3s var(--ease);
+}
+.examples button:hover { color: var(--text); border-color: var(--line); background: var(--raised); transform: translateY(-1px); }
+.examples button span {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+  color: var(--faint); white-space: nowrap; flex-shrink: 0;
+}
 
-/* --- pipeline ------------------------------------------------------------ */
+.notice {
+  margin-top: 22px; padding: 13px 16px;
+  border: 1px solid var(--line); border-left: 3px solid var(--dim);
+  border-radius: 6px; background: var(--panel);
+  font-size: 14px; color: var(--dim);
+}
+.notice[hidden] { display: none; }
+
+/* --- result panel -------------------------------------------------------- */
+/* One bounded container with labelled sections, instead of blocks floating on
+   the page background. The border is what makes "these belong together"
+   readable at a glance. */
+
+.panel {
+  margin: 46px 0 90px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow: hidden;
+  animation: fade .7s var(--ease) backwards;
+}
+.panel[hidden] { display: none; }
+
+.sec { padding: 26px 30px; border-top: 1px solid var(--line-soft); animation: fade .8s var(--ease) backwards; }
+
+.sec-head {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--faint);
+  margin-bottom: 16px;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+}
+.sec-head em { font-style: normal; color: var(--dim); letter-spacing: 0.04em; text-transform: none; }
+
+/* --- pipeline (panel header strip) --------------------------------------- */
 
 .pipeline {
-  display: flex; align-items: center; gap: 0;
-  margin: 34px 0 0;
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.05em;
+  display: flex; flex-wrap: wrap; align-items: center;
+  padding: 16px 30px; background: var(--raised);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
   color: var(--faint);
-  opacity: 0; transform: translateY(8px);
-  transition: opacity .6s var(--ease), transform .6s var(--ease);
 }
-[data-state="asked"] .pipeline, [data-state="working"] .pipeline { opacity: 1; transform: none; }
-.stage { display: flex; align-items: center; gap: 7px; }
-.stage + .stage::before {
-  content: ""; width: 26px; height: 1px; background: var(--line); margin: 0 11px;
-}
+.stage { display: flex; align-items: center; gap: 8px; }
+.stage + .stage::before { content: ""; width: 24px; height: 1px; background: var(--line); margin: 0 12px; }
 .dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  border: 1px solid var(--faint);
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid var(--faint);
   transition: background .45s, border-color .45s, transform .45s var(--ease);
 }
-.stage[data-on="run"] .dot { animation: spin 1s linear infinite; border-color: var(--text); border-top-color: transparent; border-radius: 50%; }
-.stage[data-on="pass"] .dot { background: var(--text); border-color: var(--text); transform: scale(1.15); }
+.stage[data-on="run"] .dot { border-color: var(--text); border-top-color: transparent; animation: spin 1s linear infinite; }
+.stage[data-on="pass"] .dot { background: var(--text); border-color: var(--text); }
 .stage[data-on="pass"] { color: var(--text); }
-/* A failed gate is filled hollow and ringed, not coloured — refusing is a
-   correct outcome, so it must not look like an error. */
-.stage[data-on="fail"] .dot { background: none; border-color: var(--text); box-shadow: 0 0 0 3px rgba(244,244,245,.14); transform: scale(1.15); }
+/* Filled hollow and ringed, never coloured: refusing is a correct outcome. */
+.stage[data-on="fail"] .dot { background: none; border-color: var(--text); box-shadow: 0 0 0 3.5px rgba(247,247,248,.18); }
 .stage[data-on="fail"] { color: var(--text); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* --- results ------------------------------------------------------------- */
+/* --- sources ------------------------------------------------------------- */
 
-.stage-area { margin: 40px 0 90px; }
-
-section.block { animation: fade .85s var(--ease) backwards; }
-
-.label {
-  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--faint);
-  margin-bottom: 14px;
-}
-
-/* sources appear before the answer — the one genuinely early signal */
-.sources { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 40px; }
+.sources { display: flex; flex-wrap: wrap; gap: 8px; }
 .src {
-  border: 1px solid var(--line); border-radius: 6px;
-  padding: 9px 13px; background: var(--surface);
+  border: 1px solid var(--line-soft); border-radius: 6px;
+  padding: 8px 12px; background: var(--raised);
   font-family: var(--mono); font-size: 11.5px; color: var(--dim);
   animation: pop .6s var(--ease) backwards;
 }
 @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
 .src b { color: var(--text); font-weight: 600; }
-.src i { font-style: normal; color: var(--faint); margin-left: 8px; }
+.src i { font-style: normal; color: var(--faint); margin-left: 9px; }
+
+/* --- answer -------------------------------------------------------------- */
 
 .answer {
-  font-size: clamp(1.28rem, 3.2vw, 1.92rem);
-  font-weight: 450;
-  letter-spacing: -0.022em;
-  line-height: 1.42;
-  max-width: 34ch;
-  margin-bottom: 12px;
+  font-size: clamp(1.22rem, 2.9vw, 1.72rem);
+  font-weight: 450; letter-spacing: -0.02em; line-height: 1.45;
+  max-width: 40ch;
 }
-.answer.wide { max-width: 46ch; }
 .answer .w { display: inline-block; animation: unblur .55s var(--ease) backwards; }
 @keyframes unblur { from { opacity: 0; filter: blur(5px); } }
 
-/* A refusal is set in the same type as an answer, indented behind a rule.
-   Same voice, different posture — not a warning box. */
+/* Same type as an answer, indented behind a rule. Same voice, different posture. */
 .answer.refusal { border-left: 2px solid var(--line); padding-left: 22px; color: var(--dim); }
-.answer.refusal .w { color: var(--dim); }
 
 .verdict {
-  display: inline-flex; align-items: center; gap: 10px;
-  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
-  color: var(--faint); margin-top: 22px;
-  text-transform: uppercase;
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.05em;
+  color: var(--faint); margin-top: 22px; text-transform: uppercase;
 }
-.verdict::before { content: ""; width: 18px; height: 1px; background: var(--line); }
 
-/* citations */
-.cites { margin-top: 46px; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.cite { background: var(--surface); padding: 18px 20px; transition: background .35s; cursor: pointer; }
-.cite:hover { background: var(--raised); }
-.cite-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-family: var(--mono); font-size: 11px; }
+/* --- citations ----------------------------------------------------------- */
+
+.cites { display: grid; gap: 8px; }
+.cite {
+  background: var(--raised); border: 1px solid var(--line-soft); border-radius: 8px;
+  padding: 15px 17px; cursor: pointer; transition: border-color .3s;
+}
+.cite:hover { border-color: var(--line); }
+.cite-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-family: var(--mono); font-size: 11.5px; }
 .cite-id { color: var(--text); font-weight: 600; }
 .cite-file { color: var(--faint); }
-.cite-text { color: var(--dim); font-size: 14px; margin-top: 9px; line-height: 1.6; max-height: 0; overflow: hidden; transition: max-height .55s var(--ease), margin .55s var(--ease); }
-.cite[data-open="1"] .cite-text { max-height: 340px; }
+.cite-text { color: var(--dim); font-size: 14.5px; line-height: 1.62; max-height: 0; overflow: hidden; transition: max-height .55s var(--ease), margin .45s var(--ease); }
+.cite[data-open="1"] .cite-text { max-height: 340px; margin-top: 11px; }
+.cite-hint { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: 0.08em; }
 
-/* diagnostics */
-details.diag { margin-top: 46px; border-top: 1px solid var(--line); padding-top: 20px; }
-details.diag summary { cursor: pointer; list-style: none; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); transition: color .3s; }
-details.diag summary::-webkit-details-marker { display: none; }
-details.diag summary:hover { color: var(--text); }
-details.diag summary::after { content: " +"; }
-details.diag[open] summary::after { content: " −"; }
-/* Separators are drawn as cell borders rather than as a 1px grid gap over a
-   line-coloured container. The gap trick paints the *unfilled* tail of the last
-   row too, which showed up as a grey void beside the orphaned seventh cell. */
+/* --- diagnostics --------------------------------------------------------- */
+
+details.diag > summary {
+  cursor: pointer; list-style: none;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--faint); transition: color .3s;
+}
+details.diag > summary::-webkit-details-marker { display: none; }
+details.diag > summary:hover { color: var(--text); }
+details.diag > summary::after { content: "  +"; }
+details.diag[open] > summary::after { content: "  \2212"; }
+
+.subhead {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--faint);
+  margin: 24px 0 10px;
+}
+/* Separators are cell borders, not a 1px gap over a coloured container — the
+   gap trick also paints the unfilled tail of the last row. */
 .grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  background: var(--surface); border: 1px solid var(--line);
-  margin-top: 18px; border-radius: 8px; overflow: hidden;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  background: var(--raised); border: 1px solid var(--line-soft);
+  border-radius: 8px; overflow: hidden;
 }
-.cell {
-  padding: 15px 16px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
+.cell { padding: 14px 16px; border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
 .cell dt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
-.cell dd { font-size: 21px; font-weight: 700; letter-spacing: -0.03em; margin-top: 5px; font-variant-numeric: tabular-nums; }
+.cell dd { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; margin-top: 5px; font-variant-numeric: tabular-nums; }
+.cell dd.small { font-size: 14px; font-weight: 500; }
 .cell dd small { font-size: 12px; font-weight: 400; color: var(--faint); }
-.chunklist { margin-top: 16px; font-family: var(--mono); font-size: 11px; color: var(--faint); display: grid; gap: 5px; }
-.chunklist span b { color: var(--dim); font-weight: 400; }
 
-footer { border-top: 1px solid var(--line); padding: 22px 0 40px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between; }
+.chunklist { font-family: var(--mono); font-size: 11.5px; color: var(--dim); display: grid; gap: 6px; }
+.chunklist span i { font-style: normal; color: var(--faint); }
+
+footer {
+  border-top: 1px solid var(--line); padding: 22px 0 40px;
+  font-family: var(--mono); font-size: 11px; color: var(--faint);
+  display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between;
+}
 footer a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
 footer a:hover { color: var(--text); }
 
-/* With every animation now running from hidden to the natural resting state,
-   simply switching animations off leaves everything visible. No per-selector
-   opacity rescue is needed, which is the point of the pattern. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation: none !important;
-    transition-duration: .01ms !important;
-  }
+  *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
 }
 </style>
 </head>
@@ -329,14 +310,13 @@ footer a:hover { color: var(--text); }
 <div class="shell">
   <header>
     <div class="mark">MLSC&nbsp;&nbsp;Knowledge&nbsp;Assistant</div>
-    <div class="status" id="status" data-ok="false"><span class="pulse"></span><span id="statusText">connecting</span></div>
   </header>
 
   <div class="hero">
     <h1><span class="word">Grounded.</span> <span class="word dim">Or silent.</span></h1>
     <p class="lede">
-      Answers drawn only from the MLSC knowledge base, with the passage behind every claim.
-      When the documents don't contain the answer, <strong>it says so</strong> instead of inventing one.
+      Every answer comes from the six MLSC documents and shows the passage it came from.
+      Ask something they don't cover and <strong>it tells you that</strong> rather than guessing.
     </p>
   </div>
 
@@ -346,22 +326,21 @@ footer a:hover { color: var(--text); }
       <button class="go" id="go" type="submit">Ask</button>
       <div class="rule"></div>
     </div>
-    <div class="examples" id="examples">
-      <button type="button" data-tag="DIRECT">What technical domains exist in MLSC?</button>
-      <button type="button" data-tag="MULTI-DOC">How do MLSC hackathons connect to the technical domains?</button>
-      <button type="button" data-tag="NEAR MISS">Who is the current Technical Head of MLSC?</button>
-      <button type="button" data-tag="OFF DOMAIN">What is the capital of France?</button>
+
+    <div class="notice" id="notice" hidden></div>
+
+    <div class="try">
+      <div class="try-label">Four cases worth trying</div>
+      <div class="examples" id="examples">
+        <button type="button"><span>ANSWERABLE</span>What technical domains exist in MLSC?</button>
+        <button type="button"><span>TWO DOCS</span>How do MLSC hackathons connect to the technical domains?</button>
+        <button type="button"><span>NEAR MISS</span>Who is the current Technical Head of MLSC?</button>
+        <button type="button"><span>OFF TOPIC</span>What is the capital of France?</button>
+      </div>
     </div>
   </form>
 
-  <div class="pipeline" id="pipeline">
-    <div class="stage" data-stage="retrieval"><span class="dot"></span>retrieve</div>
-    <div class="stage" data-stage="retrieval_gate"><span class="dot"></span>gate 1 · threshold</div>
-    <div class="stage" data-stage="context_sufficiency"><span class="dot"></span>gate 2 · sufficiency</div>
-    <div class="stage" data-stage="citation_binding"><span class="dot"></span>bind citations</div>
-  </div>
-
-  <main class="stage-area" id="out"></main>
+  <article class="panel" id="panel" hidden></article>
 
   <footer>
     <span>Hybrid retrieval · BM25 + bge-small · calibrated abstention</span>
@@ -372,148 +351,183 @@ footer a:hover { color: var(--text); }
 <script>
 const $ = (s, r = document) => r.querySelector(s);
 const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
-const out = $('#out'), form = $('#form'), input = $('#q'), go = $('#go');
+const panel = $('#panel'), form = $('#form'), input = $('#q'), go = $('#go'), notice = $('#notice');
 
-/* --- health ------------------------------------------------------------- */
+/* Health is checked, but only surfaced when it is actionable. A permanent status
+   readout is clutter; "you have no key, so answering will fail" is not. */
 fetch('/v1/health').then(r => r.json()).then(h => {
-  const s = $('#status');
-  s.dataset.ok = String(h.generation.configured);
-  $('#statusText').textContent = h.generation.configured
-    ? `${h.index.chunks} chunks · ${h.generation.model}`
-    : `${h.index.chunks} chunks · no key — retrieval only`;
-}).catch(() => { $('#statusText').textContent = 'offline'; });
+  if (!h.generation.configured) {
+    notice.textContent = 'No API key is configured, so answering will fail. Retrieval and the document endpoints still work — set GOOGLE_API_KEY in .env and restart.';
+    notice.hidden = false;
+  }
+}).catch(() => {});
 
-/* --- pipeline ----------------------------------------------------------- */
-const stages = [...document.querySelectorAll('.stage')];
+/* --- panel scaffolding --------------------------------------------------- */
+
+const STAGES = [
+  ['retrieval', 'retrieve'],
+  ['retrieval_gate', 'gate 1 · threshold'],
+  ['context_sufficiency', 'gate 2 · sufficiency'],
+  ['citation_binding', 'bind citations'],
+];
+
+function openPanel() {
+  panel.innerHTML = '';
+  panel.hidden = false;
+  const strip = el('div', 'pipeline');
+  STAGES.forEach(([key, label]) => {
+    const s = el('div', 'stage');
+    s.dataset.stage = key;
+    s.appendChild(el('span', 'dot'));
+    s.appendChild(document.createTextNode(label));
+    strip.appendChild(s);
+  });
+  panel.appendChild(strip);
+}
+
 const setStage = (name, state) => {
-  const s = stages.find(x => x.dataset.stage === name);
+  const s = panel.querySelector('.stage[data-stage="' + name + '"]');
   if (s) s.dataset.on = state;
 };
-const resetStages = () => stages.forEach(s => delete s.dataset.on);
 
-/* --- rendering ---------------------------------------------------------- */
+function section(title, aside) {
+  const sec = el('section', 'sec');
+  const head = el('div', 'sec-head');
+  head.appendChild(el('span', null, title));
+  if (aside) head.appendChild(el('em', null, aside));
+  sec.appendChild(head);
+  panel.appendChild(sec);
+  return sec;
+}
 
-/* Words reveal in sequence. This is presentation only: the answer arrives
-   whole, because a partially-received structured response cannot be read
-   as either an answer or a refusal until it is complete. */
-function reveal(container, text, extraClass) {
-  const p = el('p', 'answer' + (extraClass ? ' ' + extraClass : ''));
-  if (text.length > 220) p.classList.add('wide');
+/* Words reveal in sequence. Presentation only — the answer arrives whole,
+   because a partially-received structured response cannot be read as either an
+   answer or a refusal until it is complete. */
+function reveal(parent, text, refusal) {
+  const p = el('p', 'answer' + (refusal ? ' refusal' : ''));
   text.split(/\s+/).forEach((word, i) => {
     const w = el('span', 'w', word);
     w.style.animationDelay = Math.min(i * 22, 1400) + 'ms';
     p.appendChild(w);
-    // The separating space must be a text node *outside* the span: these are
-    // inline-block, and an inline-block collapses its own trailing whitespace,
-    // which ran every word together into one string.
+    // The space must be a text node outside the span: these are inline-block,
+    // and an inline-block collapses its own trailing whitespace.
     p.appendChild(document.createTextNode(' '));
   });
-  container.appendChild(p);
+  parent.appendChild(p);
 }
 
-function renderSources(data) {
-  const block = el('section', 'block');
-  block.appendChild(el('div', 'label', `Retrieved · ${data.chunks.length} passages before the model ran`));
+/* --- renderers ----------------------------------------------------------- */
+
+function renderSources(d) {
+  const sec = section('Passages retrieved', d.chunks.length + ' found before the model ran');
   const wrap = el('div', 'sources');
-  data.chunks.forEach((c, i) => {
+  d.chunks.forEach((c, i) => {
     const chip = el('div', 'src');
-    chip.style.animationDelay = (i * 60) + 'ms';
-    chip.innerHTML = `<b>${c.chunk_id}</b><i>${c.doc_title}</i>`;
+    chip.style.animationDelay = (i * 55) + 'ms';
+    chip.appendChild(el('b', null, c.chunk_id));
+    chip.appendChild(el('i', null, c.doc_title));
     wrap.appendChild(chip);
   });
-  block.appendChild(wrap);
-  out.appendChild(block);
+  sec.appendChild(wrap);
 }
 
 function renderAnswer(a) {
-  const block = el('section', 'block');
-  block.appendChild(el('div', 'label', a.answered ? 'Answer' : 'No answer — and why'));
-  reveal(block, a.answer, a.answered ? '' : 'refusal');
-  const v = el('div', 'verdict');
-  v.textContent = a.answered
-    ? `answered · confidence ${a.confidence}`
-    : `declined · ${(a.abstention_reason || '').replace(/_/g, ' ')}`;
-  block.appendChild(v);
-  out.appendChild(block);
+  const sec = section(
+    a.answered ? 'Answer' : 'Declined',
+    a.answered ? 'confidence ' + a.confidence : (a.abstention_reason || '').replace(/_/g, ' ')
+  );
+  reveal(sec, a.answer, !a.answered);
+  sec.appendChild(el('div', 'verdict', a.answered
+    ? 'Drawn only from the passages above'
+    : 'The knowledge base does not contain this'));
 }
 
 function renderCitations(c) {
   if (!c.citations.length) return;
-  const block = el('section', 'block');
-  block.appendChild(el('div', 'label', `Sources · ${c.sources.join(' · ')}`));
+  const sec = section('Sources', c.sources.join(' · '));
   const list = el('div', 'cites');
   c.citations.forEach(cite => {
     const row = el('div', 'cite');
-    row.innerHTML =
-      `<div class="cite-top"><span class="cite-id">${cite.chunk_id}</span>` +
-      `<span class="cite-file">${cite.source_file} · chars ${cite.char_range[0]}–${cite.char_range[1]}</span></div>` +
-      `<div class="cite-text">${cite.snippet}</div>`;
+    const top = el('div', 'cite-top');
+    top.appendChild(el('span', 'cite-id', cite.chunk_id));
+    const meta = el('span', 'cite-file',
+      cite.source_file + ' · chars ' + cite.char_range[0] + '–' + cite.char_range[1] + '  ');
+    meta.appendChild(el('span', 'cite-hint', 'CLICK'));
+    top.appendChild(meta);
+    row.appendChild(top);
+    row.appendChild(el('div', 'cite-text', cite.snippet));
     row.addEventListener('click', () => { row.dataset.open = row.dataset.open === '1' ? '0' : '1'; });
     list.appendChild(row);
   });
-  block.appendChild(list);
-  out.appendChild(block);
+  sec.appendChild(list);
+}
+
+function cellGrid(pairs) {
+  const grid = el('div', 'grid');
+  pairs.forEach(([k, v, small, unit]) => {
+    const c = el('div', 'cell');
+    c.appendChild(el('dt', null, k));
+    const dd = el('dd', small ? 'small' : null, String(v));
+    if (unit) dd.appendChild(el('small', null, unit));
+    c.appendChild(dd);
+    grid.appendChild(c);
+  });
+  return grid;
 }
 
 function renderDiagnostics(d) {
   if (!d) return;
   const r = d.retrieval || {}, g = d.generation || {}, gates = d.gates || {};
-  const block = el('section', 'block');
+  const sec = el('section', 'sec');
   const det = el('details', 'diag');
   det.appendChild(el('summary', null, 'Why this answer'));
 
-  const cells = [
+  det.appendChild(el('div', 'subhead', 'Retrieval'));
+  det.appendChild(cellGrid([
     ['top cosine', r.top_dense_score != null ? r.top_dense_score.toFixed(3) : '—'],
-    ['threshold', d.abstention_threshold != null ? d.abstention_threshold.toFixed(2) : '—'],
-    ['strategy', r.strategy || '—'],
+    ['abstain below', d.abstention_threshold != null ? d.abstention_threshold.toFixed(2) : '—'],
+    ['strategy', r.strategy || '—', true],
     ['documents', (r.documents_represented || []).length],
-    ['tokens in', g.input_tokens ?? '—'],
-    ['tokens out', g.output_tokens ?? '—'],
-    ['total', `${Math.round(d.total_ms || 0)}<small>ms</small>`],
-  ];
-  const grid = el('div', 'grid');
-  cells.forEach(([k, v]) => {
-    const c = el('div', 'cell');
-    c.innerHTML = `<dt>${k}</dt><dd>${v}</dd>`;
-    grid.appendChild(c);
-  });
-  det.appendChild(grid);
+  ]));
 
-  const gateGrid = el('div', 'grid');
-  Object.entries(gates).forEach(([k, v]) => {
-    const c = el('div', 'cell');
-    c.innerHTML = `<dt>${k.replace(/_/g, ' ')}</dt><dd style="font-size:14px">${v}</dd>`;
-    gateGrid.appendChild(c);
-  });
-  det.appendChild(gateGrid);
+  det.appendChild(el('div', 'subhead', 'Gates'));
+  det.appendChild(cellGrid(Object.entries(gates).map(([k, v]) => [k.replace(/_/g, ' '), v, true])));
+
+  det.appendChild(el('div', 'subhead', 'Generation'));
+  det.appendChild(cellGrid([
+    ['model', g.model || 'not called', true],
+    ['tokens in', g.input_tokens != null ? g.input_tokens : '—'],
+    ['tokens out', g.output_tokens != null ? g.output_tokens : '—'],
+    ['total', Math.round(d.total_ms || 0), false, 'ms'],
+  ]));
 
   if (r.chunks && r.chunks.length) {
+    det.appendChild(el('div', 'subhead', 'Ranking'));
     const list = el('div', 'chunklist');
     r.chunks.forEach((c, i) => {
       const s = el('span');
-      s.innerHTML = `${String(i + 1).padStart(2, '0')} &nbsp;<b>${c.chunk_id}</b> &nbsp;${c.score}`;
+      s.appendChild(el('i', null, String(i + 1).padStart(2, '0')));
+      s.appendChild(document.createTextNode('  ' + c.chunk_id + '  '));
+      s.appendChild(el('i', null, String(c.score)));
       list.appendChild(s);
     });
     det.appendChild(list);
   }
 
-  block.appendChild(det);
-  out.appendChild(block);
+  sec.appendChild(det);
+  panel.appendChild(sec);
 }
 
-function renderError(p) {
-  const block = el('section', 'block');
-  block.appendChild(el('div', 'label', p.title || 'Something went wrong'));
-  reveal(block, p.detail || 'Unknown error.', 'refusal');
-  out.appendChild(block);
+function renderProblem(p) {
+  const sec = section(p.title || 'Something went wrong');
+  reveal(sec, p.detail || 'Unknown error.', true);
 }
 
-/* --- ask ---------------------------------------------------------------- */
+/* --- ask ----------------------------------------------------------------- */
 
 async function ask(question) {
   document.documentElement.dataset.state = 'working';
-  out.innerHTML = '';
-  resetStages();
+  openPanel();
   setStage('retrieval', 'run');
   go.disabled = true;
   input.blur();
@@ -527,31 +541,31 @@ async function ask(question) {
     });
   } catch (e) {
     setStage('retrieval', 'fail');
-    renderError({ title: 'Cannot reach the API', detail: String(e) });
+    renderProblem({ title: 'Cannot reach the API', detail: String(e) });
     go.disabled = false;
     return;
   }
 
   if (!response.ok) {
-    let problem = { title: `HTTP ${response.status}`, detail: 'The request was rejected.' };
-    try { problem = await response.json(); } catch {}
+    let problem = { title: 'HTTP ' + response.status, detail: 'The request was rejected.' };
+    try { problem = await response.json(); } catch (err) { /* keep the fallback */ }
     setStage('retrieval', 'fail');
-    renderError(problem);
+    renderProblem(problem);
     go.disabled = false;
     document.documentElement.dataset.state = 'asked';
     return;
   }
 
-  /* Minimal SSE reader: the events are named and newline-delimited, so a
-     hand-rolled parser is smaller and clearer than pulling in a library. */
+  /* Minimal SSE reader: events are named and newline-delimited, so parsing them
+     by hand is smaller and clearer than pulling in a library. */
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '', event = null;
 
   for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop();
 
@@ -559,7 +573,7 @@ async function ask(question) {
       if (line.startsWith('event:')) { event = line.slice(6).trim(); continue; }
       if (!line.startsWith('data:')) continue;
       let payload;
-      try { payload = JSON.parse(line.slice(5).trim()); } catch { continue; }
+      try { payload = JSON.parse(line.slice(5).trim()); } catch (err) { continue; }
 
       if (event === 'retrieval') {
         setStage('retrieval', 'pass');
@@ -568,9 +582,7 @@ async function ask(question) {
       } else if (event === 'answer') {
         const gate1Failed = !payload.answered && payload.abstention_reason === 'no_relevant_context';
         setStage('retrieval_gate', gate1Failed ? 'fail' : 'pass');
-        if (!gate1Failed) {
-          setStage('context_sufficiency', payload.answered ? 'pass' : 'fail');
-        }
+        if (!gate1Failed) setStage('context_sufficiency', payload.answered ? 'pass' : 'fail');
         renderAnswer(payload);
       } else if (event === 'citations') {
         if (payload.citations.length) setStage('citation_binding', 'pass');
@@ -578,7 +590,7 @@ async function ask(question) {
       } else if (event === 'done') {
         renderDiagnostics(payload.diagnostics);
       } else if (event === 'error') {
-        renderError(payload);
+        renderProblem(payload);
       }
     }
   }
@@ -596,8 +608,11 @@ form.addEventListener('submit', e => {
 $('#examples').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
-  input.value = b.textContent;
-  ask(b.textContent);
+  // The tag chip is a child span; the question is everything after it.
+  const tag = b.querySelector('span').textContent;
+  const q = b.textContent.replace(tag, '').trim();
+  input.value = q;
+  ask(q);
 });
 </script>
 </body>
