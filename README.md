@@ -6,10 +6,11 @@ base does not contain the answer** rather than inventing something plausible.
 
 Built for the MLSC AI/ML Domain Lead recruitment challenge.
 
-> **Status: Phases 0-2 complete.** Ingestion, chunking, embeddings, the index and hybrid
-> retrieval are built and tested. `mlsc index` and `mlsc search` work today with no API key.
-> Generation, the API and the evaluation harness are next — see [`docs/PLAN.md`](docs/PLAN.md),
-> which also records what Phase 2 measured, including the parts that did not go as designed.
+> **Status: Phases 0-3 complete.** Ingestion, chunking, embeddings, the index, hybrid retrieval
+> and the retrieval half of the evaluation harness are built, tested and measured. `mlsc index`,
+> `mlsc search` and `mlsc eval` all run with no API key. Generation, the API and LLM-judged
+> metrics are next. Real numbers in [`docs/EVALUATION.md`](docs/EVALUATION.md#results); what
+> went wrong along the way is in [`docs/PLAN.md`](docs/PLAN.md).
 
 ---
 
@@ -107,11 +108,19 @@ genuinely different causes:
 The threshold for gate 1 is **calibrated by sweeping it across the evaluation set** and reading
 the abstention precision/recall curve, not picked by hand.
 
-Measured on this corpus, best cosine per question: off-domain questions land at **0.43**,
-answerable ones between **0.67 and 0.90** — and near-miss unanswerables like the Technical Head
-one at **0.75**, *inside* the answerable range. So gate 1 can separate off-domain noise and
-nothing more; the near-misses are unreachable by any threshold. That is not a design
-preference, it is why gate 2 has to exist.
+Gate 1 is calibrated to **0.55** — the highest threshold that refuses no answerable question.
+The measured curve is the strongest evidence in the project:
+
+| Threshold | Hallucination | Over-refusal | Near-miss caught |
+|---|---|---|---|
+| **0.55** (shipped) | 0.83 | **0.00** | 0.00 |
+| 0.75 | 0.25 | 0.39 | 0.67 |
+| 0.80 | 0.00 | 0.71 | 1.00 |
+
+Near-miss unanswerables score 0.71–0.78; answerable questions score 0.67–0.90. The
+distributions overlap almost completely, so **catching "who is the current Technical Head?"
+with a threshold means refusing 39% of real questions.** Gate 2 is a necessity, not a
+preference — and Phase 7 has to show it actually closes the gap.
 
 ---
 
@@ -121,7 +130,9 @@ Metrics are grouped by which part of the pipeline they blame, because a single h
 cannot tell you whether to fix the chunker, the prompt or the threshold.
 
 - **Retrieval** *(no LLM, deterministic, runs in CI)* — context precision@k, context recall@k,
-  MRR, nDCG@k, document hit rate, multi-document coverage
+  R-precision, average precision, MRR, nDCG@k, document recall, multi-document coverage.
+  **Measured: recall@6 0.955, MRR 0.912, nDCG@6 0.891, multi-doc coverage 1.000** on a
+  40-question dev set
 - **Generation** *(LLM as judge, cached and seeded)* — faithfulness (claim-level), answer
   relevancy, answer correctness
 - **Abstention** — precision, recall, F1, **hallucination rate**, over-refusal rate
@@ -139,7 +150,7 @@ cross-check. Reasoning for that, and full definitions, in
 
 ## Getting started
 
-`mlsc index`, `mlsc search`, `mlsc info` and the test suite work now, all without an API key.
+`mlsc index`, `mlsc search`, `mlsc eval` and `mlsc info` work now, all without an API key.
 `ask` and `serve` arrive in Phases 4-5.
 
 ```bash

@@ -32,14 +32,15 @@ def ranks(retriever, query, strategy, k=6):  # type: ignore[no-untyped-def]
 # --- the questions the brief itself names ------------------------------------
 
 
-def test_domain_list_is_retrieved_for_the_briefs_example(retriever) -> None:  # type: ignore[no-untyped-def]
+def test_domain_list_ranks_first_for_the_briefs_example(retriever) -> None:  # type: ignore[no-untyped-def]
     """ "What technical domains exist in MLSC?" must surface the chunk listing all five.
 
-    Rank is deliberately not asserted: hybrid currently places it third (see
-    docs/PLAN.md Phase 2 findings). What matters for answering is that it is in the
-    context window at all.
+    Phase 2 could only assert presence, because fusing a noisy BM25 opinion pushed this
+    to rank 3. The low-IDF filter removed that noise — the query's only surviving terms
+    are `domain` (at exactly 50% document frequency, so IDF is zero) and `exist` (absent
+    from the corpus), so BM25 correctly abstains and hybrid defers to dense.
     """
-    assert "domains::c01" in ranks(retriever, "What technical domains exist in MLSC?", None)
+    assert ranks(retriever, "What technical domains exist in MLSC?", None)[0] == "domains::c01"
 
 
 def test_rare_exact_term_is_found(retriever) -> None:  # type: ignore[no-untyped-def]
@@ -82,11 +83,26 @@ def test_lexical_rescues_a_dense_near_miss(retriever) -> None:  # type: ignore[n
 
 def test_all_three_strategies_run_and_differ(retriever) -> None:  # type: ignore[no-untyped-def]
     """The ablation needs three genuinely distinct strategies, not three aliases."""
-    query = "What technical domains exist in MLSC?"
+    query = "How many domain leads does each technical domain have?"
     dense = ranks(retriever, query, RetrievalStrategy.DENSE)
     lexical = ranks(retriever, query, RetrievalStrategy.LEXICAL)
     assert dense and lexical
     assert dense != lexical
+
+
+def test_lexical_abstains_when_no_query_term_discriminates(retriever) -> None:
+    """ "What is MLSC?" reduces to a single term present in all 18 chunks.
+
+    BM25 would then rank by little more than chunk length. Measured: fusing that opinion
+    pushed the correct chunk out of the results entirely on a question dense answered
+    perfectly. Abstaining is the correct behaviour, and hybrid falls back to dense.
+    """
+    query = "What is MLSC?"
+    assert ranks(retriever, query, RetrievalStrategy.LEXICAL) == []
+    assert ranks(retriever, query, RetrievalStrategy.HYBRID) == ranks(
+        retriever, query, RetrievalStrategy.DENSE
+    )
+    assert "about_mlsc::c00" in ranks(retriever, query, RetrievalStrategy.HYBRID)
 
 
 def test_only_the_requested_arm_runs(retriever) -> None:  # type: ignore[no-untyped-def]

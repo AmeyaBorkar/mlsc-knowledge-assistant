@@ -14,7 +14,7 @@ from typing import cast
 
 from mlsc_assistant.config import Settings
 from mlsc_assistant.core.errors import ConfigurationError
-from mlsc_assistant.core.models import RetrievalStrategy
+from mlsc_assistant.core.models import IndexManifest, RetrievalStrategy
 from mlsc_assistant.core.ports import Chunker, Embedder, VectorStore
 from mlsc_assistant.embeddings.cache import FileEmbeddingCache, NullEmbeddingCache
 from mlsc_assistant.embeddings.fastembed_embedder import FastEmbedEmbedder
@@ -92,7 +92,7 @@ def make_store(settings: Settings) -> VectorStore:
     raise ConfigurationError(f"Unknown vector store backend {backend!r}.")
 
 
-def load_store(settings: Settings) -> tuple[VectorStore, object]:
+def load_store(settings: Settings) -> tuple[VectorStore, IndexManifest]:
     """Build a store and load the persisted index into it.
 
     Raises ``IndexNotBuiltError`` if there is no index, with a message naming the
@@ -131,4 +131,5 @@ def make_retriever(
         bm25_k1=cfg.bm25.k1,
         bm25_b=cfg.bm25.b,
         bm25_index_title=cfg.bm25.index_title,
+        bm25_max_document_frequency=cfg.bm25.max_document_frequency,
     )

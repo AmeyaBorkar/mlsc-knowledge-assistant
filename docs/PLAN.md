@@ -137,7 +137,7 @@ as an ablation knob.
 
 ---
 
-### Phase 3 — Evaluation harness, retrieval half *(~45 min)*
+### Phase 3 — Evaluation harness, retrieval half *(~45 min)* — **done**
 
 Deliberately before generation. Retrieval quality is measurable without an LLM, and doing it now
 means phases 4–6 are tuned against numbers instead of vibes.
@@ -150,8 +150,41 @@ means phases 4–6 are tuned against numbers instead of vibes.
 - `mlsc eval --metrics retrieval`
 
 **Done when:** a retrieval-only report renders, and the dense / lexical / hybrid ablation
-produces real numbers. **This is the first point where D1 is proven rather than asserted** — if
-hybrid does not win here, the design changes.
+produces real numbers. Both hold; full results in [EVALUATION.md](EVALUATION.md#results).
+
+#### What this phase found
+
+**The dev set is 40 questions** (28 answerable, 12 unanswerable, 8 of those near-miss),
+covering all five types from the brief, with gold chunk labels validated against the live
+index on every run so a stale label fails loudly instead of deflating recall invisibly.
+
+**1. Phase 2's headline finding was caused by a bug, not by fusion being wrong.** Hybrid was
+losing to dense because BM25 was voting on queries where it had no information — "What is
+MLSC?" reduces to one term present in all 18 chunks, and Okapi's epsilon floor means it still
+scores, by chunk length. Filtering non-discriminative query terms (D11) lifted hybrid recall
+0.920 → 0.955, MRR 0.875 → 0.912, and restored the brief's own example question to rank 1.
+
+**2. D1 is upheld only partially, and the write-up says so.** Hybrid wins MRR and nDCG, ties
+R-Precision, and loses recall 0.955 vs 0.973. It stays the default on ranking quality, with the
+recall gap — half a question out of 28 — stated plainly rather than buried.
+
+**3. Two Phase 2 predictions were wrong.** `rrf_k` was predicted to be mis-scaled for an
+18-chunk corpus, and `candidate_k` to be feeding noise into fusion. Sweeping both changes
+nothing to three decimal places. Recorded as corrections.
+
+**4. Contextual chunk headers are the biggest single win in the pipeline** — 9 to 11 points of
+recall, 8 to 11 of nDCG, for the cost of a string prefix at embed time.
+
+**5. Diversification is inert on this set.** Multi-document coverage is 1.000 with the
+per-document cap at 3 and 1.000 with it disabled; at 1 or 2 it is actively harmful. It is kept
+as a guard but has not earned its place on evidence, and the report says so.
+
+**6. The abstention curve is the most valuable output.** Gate 1 was calibrated to **0.55** —
+the highest threshold refusing no answerable question. Near-miss recall stays at **zero until
+0.75**, where over-refusal is already **39%**; reaching full near-miss recall costs **71%**
+over-refusal. So no threshold can catch "who is the current Technical Head?" without destroying
+the system, and gate 1 alone leaves a hallucination rate of 0.83. The three-gate design is now
+measured rather than argued — and Phase 7 has to show gate 2 actually closes that gap.
 
 ---
 

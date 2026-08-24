@@ -75,6 +75,10 @@ class BM25Config(BaseModel):
     index_title: bool = True
     """Whether BM25 indexes the document-title prefix alongside the chunk text."""
 
+    max_document_frequency: float = Field(0.5, gt=0.0, le=1.0)
+    """Query terms appearing in more than this share of chunks are dropped as
+    non-discriminative. At 1.0 the filter is disabled, which is the ablation."""
+
 
 class RerankConfig(BaseModel):
     enabled: bool = False
@@ -102,20 +106,20 @@ class RetrievalConfig(BaseModel):
 class AbstentionConfig(BaseModel):
     """Gate thresholds.
 
-    ``min_dense_score`` is deliberately a *calibrated* value, not a hand-picked one.
+    ``min_dense_score`` is calibrated, not hand-picked. ``mlsc eval`` sweeps it and
+    reports the abstention precision/recall curve; the committed 0.55 is the highest
+    threshold that refuses no answerable question on the dev set.
 
-    Measured best-cosine on this corpus: off-domain questions land near 0.43, genuinely
-    answerable ones between 0.67 and 0.90, and near-miss unanswerables ("who is the
-    current Technical Head?") at 0.75 — *inside* the answerable range. So a threshold
-    can separate off-domain noise and nothing more; catching near-misses is gate 2's
-    job. ``mlsc calibrate`` sweeps this value and reports the resulting abstention
-    precision/recall curve, and the committed number must come from that sweep with its
-    rationale recorded in docs/EVALUATION.md.
+    The measured curve settles a design question: near-miss unanswerables score 0.71 to
+    0.78, inside the answerable range of 0.67 to 0.90. A threshold high enough to catch
+    them refuses 39% of answerable questions, and one catching all of them refuses 71%.
+    Gate 1 can remove off-domain noise and nothing else — gate 2 is a necessity rather
+    than a preference. Full curve in docs/EVALUATION.md.
     """
 
     min_dense_score: float = Field(0.35, ge=0.0, le=1.0)
     min_score_margin: float = Field(0.0, ge=0.0)
-    calibrated: bool = False
+    calibrated: bool = True
     """Set true only once the committed threshold came from a real sweep."""
 
     require_sufficient_context: bool = True

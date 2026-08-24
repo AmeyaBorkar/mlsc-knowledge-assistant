@@ -1,7 +1,7 @@
 # Evaluation methodology
 
-> Status: **design**. Metric definitions and the justification for each; the harness is built
-> in Phases 3 and 7. Results are appended to this document once it runs.
+> Status: **retrieval metrics implemented and run** (see Results at the end). Generation
+> and LLM-judged abstention metrics arrive in Phase 7.
 
 The brief asks for context precision, context recall, answer relevancy and faithfulness, and
 says we must be able to justify the metrics we report. This document is that justification.
@@ -188,6 +188,111 @@ this project is judged on, and only the breakdown reveals it.
 
 ## Results
 
-*To be filled in once the harness runs. Headline table, per-type breakdown, ablation table, the
-chosen abstention operating point with its rationale, and an honest list of what the system
-still gets wrong.*
+**Retrieval only.** No LLM was involved in any number below, so all of it is exactly
+reproducible offline and runs in CI. Generation and LLM-judged metrics arrive in Phase 7.
+
+Dataset: `dev_set`, 40 questions (28 answerable and scored on retrieval, 12
+unanswerable). Index: 18 chunks, `bge-small-en-v1.5`, chunker `structural-v1`, k = 6.
+
+### Strategy comparison
+
+| Strategy | Recall@6 | Precision@6 | R-Precision | MRR | nDCG@6 | Doc recall | Multi-doc coverage |
+|---|---|---|---|---|---|---|---|
+| dense | **0.973** | 0.232 | **0.741** | 0.858 | 0.866 | 1.000 | 1.000 |
+| lexical | 0.795 | **0.250** | 0.616 | 0.711 | 0.700 | 0.893 | 0.714 |
+| **hybrid** | 0.955 | 0.226 | **0.741** | **0.912** | **0.891** | 1.000 | 1.000 |
+
+Read precision@6 with the labelling in mind: most questions have one gold chunk, so
+precision@6 is capped at 0.167 for them. R-Precision is the comparable figure.
+
+**Hybrid stays the default, but the honest reading is that it wins on ranking and loses
+on recall.** It takes MRR (+0.054) and nDCG (+0.025) clearly, ties R-Precision, and gives
+up 0.018 recall — half a question out of 28, comfortably inside noise at this sample size.
+Ranking is worth paying for because the generator attends unevenly across its context
+window, so a gold chunk at rank 1 is worth more than the same chunk at rank 5. Dense-only
+remains a defensible choice and is one config flag away.
+
+Per question, hybrid improves the first-relevant rank on five questions (q03 5→2, q11
+3→1, q22 2→1, q26 2→1, q28 2→1) and loses ground on two (q25, q27). The single recall
+loss is q25, where BM25 latches onto "students can learn and contribute to projects" as a
+lexical decoy.
+
+### By question type (hybrid)
+
+| Type | Recall@6 | Precision@6 | MRR | All-docs hit |
+|---|---|---|---|---|
+| direct | 1.000 | 0.167 | 0.929 | 1.000 |
+| multi_document | 0.958 | 0.361 | 1.000 | 1.000 |
+| reasoning | 0.900 | 0.200 | 0.840 | 1.000 |
+| ambiguous | 0.833 | 0.278 | 0.778 | 1.000 |
+
+Ambiguous questions are the weakest class, which is the expected shape: terse, vaguely
+worded queries give both retrievers less to work with. Multi-document questions do not
+degrade — every one of them retrieves all its required documents.
+
+### Ablations
+
+| Variant | Recall@6 | R-Prec | MRR | nDCG@6 |
+|---|---|---|---|---|
+| hybrid (shipped) | 0.955 | 0.741 | 0.912 | 0.891 |
+| — without contextual chunk headers | 0.848 | 0.661 | 0.809 | 0.783 |
+| — without the low-IDF query filter | 0.920 | 0.723 | 0.875 | 0.849 |
+| dense (shipped) | 0.973 | 0.741 | 0.858 | 0.866 |
+| — without contextual chunk headers | 0.884 | 0.643 | 0.774 | 0.788 |
+
+**Contextual chunk headers are the single largest win measured** — worth 9 to 11 points
+of recall and 8 to 11 of nDCG. Prefixing each chunk with its document title before
+embedding costs nothing and is the highest-value decision in the pipeline.
+
+Knobs that turned out **not** to matter, contradicting predictions made in Phase 2:
+
+| Ablation | Result |
+|---|---|
+| `rrf_k` ∈ {5, 10, 20, 30, 60} | identical recall; MRR moves 0.016 at k=5 and is flat above it |
+| `candidate_k` ∈ {6, 8, 10, 15} | identical to three decimal places |
+| per-document cap ∈ {3, 18} | identical — **the cap never fires on this set** |
+| per-document cap ∈ {1, 2} | actively harmful: recall 0.750 and 0.902 |
+
+Phase 2 predicted that RRF's k=60 was mis-scaled for an 18-chunk corpus and that
+`candidate_k` was feeding noise into fusion. Both predictions were **wrong**. The real
+problem was low-IDF query terms, and once those are filtered the fusion constant is
+irrelevant. Recorded as a correction rather than quietly dropped.
+
+Diversification is likewise **unproven**: multi-document coverage is 1.000 with the cap
+at 3 and 1.000 with it disabled, so on this evaluation set the feature does nothing. It
+is kept because it costs nothing and guards a real failure mode, but it has not earned
+its place on evidence, and the honest statement is that it is inert here.
+
+### Abstention gate 1 — the calibration curve
+
+Threshold on best cosine, no LLM. This measures the **ceiling** of what a similarity
+threshold can achieve alone.
+
+| Threshold | Abst. P | Abst. R | Hallucination | Over-refusal | Near-miss R | Off-domain R |
+|---|---|---|---|---|---|---|
+| 0.450 | 1.00 | 0.17 | 0.83 | 0.00 | 0.00 | 0.67 |
+| **0.550** | **1.00** | **0.17** | **0.83** | **0.00** | **0.00** | **0.67** |
+| 0.650 | 0.60 | 0.25 | 0.75 | 0.07 | 0.00 | 1.00 |
+| 0.700 | 0.50 | 0.25 | 0.75 | 0.11 | 0.00 | 1.00 |
+| 0.750 | 0.45 | 0.75 | 0.25 | 0.39 | 0.67 | 1.00 |
+| 0.800 | 0.38 | 1.00 | 0.00 | 0.71 | 1.00 | 1.00 |
+
+**Committed operating point: 0.55** — the highest threshold that refuses no answerable
+question. Gate 1 runs before the LLM and should remove obvious noise without ever harming
+a real question, so zero over-refusal is the binding constraint rather than peak F1.
+
+The important column is *Near-miss R*. It stays at **0.00 until 0.75**, by which point
+**39% of answerable questions are being refused**; reaching 1.00 costs 71% over-refusal.
+Near-miss unanswerables score 0.71–0.78 and answerable questions 0.67–0.90 — the
+distributions overlap almost entirely.
+
+So the three-gate design is not a stylistic preference. **No threshold can catch
+"who is the current Technical Head?" without destroying the system**, and gate 1 alone
+leaves a hallucination rate of 0.83. Whether gate 2 actually closes that gap is the
+central question Phase 7 has to answer.
+
+### What this does not yet measure
+
+Faithfulness, answer relevancy, answer correctness, and the real abstention numbers all
+need an LLM and arrive in Phase 7. Everything above is the retrieval ceiling: it says
+what the generator will have to work with, not how well it uses it.

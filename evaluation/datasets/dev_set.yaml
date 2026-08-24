@@ -1,0 +1,529 @@
+version: 1
+name: dev_set
+description: >
+  Development evaluation set for the MLSC Knowledge Assistant, authored by reading the
+  six knowledge-base documents. Used for measurement and calibration only. It is never
+  imported by src/, and a test asserts no reference answer appears in the source tree.
+
+  MLSC supplies its own evaluation set separately; dataset.py adapts that format when it
+  arrives. This set exists so the system can be measured before then.
+
+labelling_rule: >
+  A chunk is gold if it contains information NECESSARY to produce a correct and complete
+  answer. Chunks that are merely on-topic, or that restate context without carrying a
+  required fact, are NOT gold.
+
+  This is the strict reading, chosen so precision means something: under a looser
+  "related enough" rule, most of an 18-chunk corpus is arguably relevant to any MLSC
+  question and precision stops discriminating between systems.
+
+  Consequence worth stating: most questions here have exactly one gold chunk, so
+  precision@6 is bounded above by 0.167 for them. That is a property of the labelling,
+  not a failure of retrieval, which is why the report leads with recall and R-precision.
+
+  Questions where relevance is genuinely arguable carry a `notes` field explaining the
+  call. Unanswerable questions have empty gold sets and are excluded from retrieval
+  metrics; they drive the abstention analysis instead.
+
+# type:     direct | multi_document | reasoning | unanswerable | ambiguous
+# subtype:  for unanswerable — near_miss (topic present, fact absent)
+#                            | off_domain (nothing related in the corpus at all)
+
+questions:
+  # --- direct -------------------------------------------------------------
+
+  - id: q01
+    question: What technical domains exist in MLSC?
+    type: direct
+    answerable: true
+    gold_documents: [domains]
+    gold_chunks: [domains::c01]
+    reference_answer: >
+      MLSC has five major technical domains: Artificial Intelligence and Machine
+      Learning, Web Development, App Development, Cloud Computing, and Web3.
+    notes: >
+      The brief's own example question. domains::c00 says the domains exist but does not
+      name them, so it is not gold under the necessity rule.
+
+  - id: q02
+    question: What are the responsibilities of a domain lead?
+    type: direct
+    answerable: true
+    gold_documents: [leadership]
+    gold_chunks: [leadership::c01]
+    reference_answer: >
+      Domain leads plan the learning roadmap for their domain, assign tasks to
+      coordinators, conduct knowledge-sharing sessions, review technical projects, mentor
+      coordinators, encourage participation in hackathons, and coordinate cross-domain
+      projects when required.
+
+  - id: q03
+    question: How many domain leads does each technical domain have?
+    type: direct
+    answerable: true
+    gold_documents: [leadership]
+    gold_chunks: [leadership::c00]
+    reference_answer: Each technical domain has two domain leads.
+    notes: >
+      The fact is one clause inside a merged chunk. Dense retrieval ranks this chunk
+      fifth; BM25 ranks it first. The clearest single case for hybrid retrieval.
+
+  - id: q04
+    question: What does the AI/ML domain focus on?
+    type: direct
+    answerable: true
+    gold_documents: [domains]
+    gold_chunks: [domains::c02]
+    reference_answer: >
+      The AI/ML domain focuses on machine learning, deep learning, natural language
+      processing, computer vision, generative AI and applied AI systems.
+
+  - id: q05
+    question: What does the Web3 domain cover?
+    type: direct
+    answerable: true
+    gold_documents: [domains]
+    gold_chunks: [domains::c03]
+    reference_answer: >
+      The Web3 domain focuses on blockchain technologies, decentralized applications,
+      smart contracts and related technologies.
+    notes: Rare exact term; the case where lexical matching should carry the query.
+
+  - id: q06
+    question: What behaviour is not acceptable under the MLSC code of conduct?
+    type: direct
+    answerable: true
+    gold_documents: [code_of_conduct]
+    gold_chunks: [code_of_conduct::c00]
+    reference_answer: >
+      Harassment, discrimination, plagiarism and intentional disruption of community
+      activities are not acceptable.
+
+  - id: q07
+    question: What happens if someone violates the code of conduct?
+    type: direct
+    answerable: true
+    gold_documents: [code_of_conduct]
+    gold_chunks: [code_of_conduct::c01]
+    reference_answer: >
+      Violating the code of conduct may result in removal from specific activities or
+      other actions determined by the MLSC leadership team.
+
+  - id: q08
+    question: What stages do hackathon participants go through?
+    type: direct
+    answerable: true
+    gold_documents: [hackathons]
+    gold_chunks: [hackathons::c00]
+    reference_answer: >
+      Participants generally progress through registration, idea submission,
+      shortlisting, development and final presentation.
+
+  - id: q09
+    question: How are hackathon projects evaluated?
+    type: direct
+    answerable: true
+    gold_documents: [hackathons]
+    gold_chunks: [hackathons::c01]
+    reference_answer: >
+      Participants are generally evaluated on innovation, technical implementation,
+      problem relevance, feasibility, scalability and quality of presentation, though the
+      exact judging criteria can vary between hackathons.
+
+  - id: q10
+    question: How are MLSC coordinators selected?
+    type: direct
+    answerable: true
+    gold_documents: [membership]
+    gold_chunks: [membership::c01]
+    reference_answer: >
+      Coordinator positions are selected through the MLSC recruitment process. Candidates
+      are generally evaluated on technical skills, willingness to contribute,
+      communication and ability to work in a team.
+
+  - id: q11
+    question: Does being a member automatically make me a coordinator?
+    type: direct
+    answerable: true
+    gold_documents: [membership]
+    gold_chunks: [membership::c00]
+    reference_answer: >
+      No. Being a member does not automatically make a student a coordinator; coordinator
+      positions are selected through the recruitment process.
+
+  - id: q12
+    question: What is MLSC?
+    type: direct
+    answerable: true
+    gold_documents: [about_mlsc]
+    gold_chunks: [about_mlsc::c00]
+    reference_answer: >
+      Microsoft Learn Student Community (MLSC) VIT Pune is a student-led technical
+      community that helps students learn, build, collaborate and take part in
+      technology-related activities, running workshops, hackathons, study sessions,
+      project-building initiatives and networking activities through the academic year.
+
+  - id: q13
+    question: What does the Technical Head do?
+    type: direct
+    answerable: true
+    gold_documents: [leadership]
+    gold_chunks: [leadership::c00]
+    reference_answer: >
+      The Technical Head coordinates the technical domains and works with domain leads to
+      plan technical activities.
+    notes: >
+      Answerable, and deliberately paired with q29 which asks *who* the Technical Head
+      is — the same retrieval, opposite correct behaviour.
+
+  - id: q14
+    question: What is expected of second-year coordinators?
+    type: direct
+    answerable: true
+    gold_documents: [leadership]
+    gold_chunks: [leadership::c02]
+    reference_answer: >
+      Second-year coordinators are expected to gradually take more responsibility for
+      projects and technical activities, under the guidance of domain leads.
+
+  # --- multi-document -----------------------------------------------------
+
+  - id: q15
+    question: How do MLSC hackathons connect to the technical domains?
+    type: multi_document
+    answerable: true
+    gold_documents: [hackathons, domains]
+    gold_chunks: [hackathons::c01, domains::c03]
+    reference_answer: >
+      Hackathon projects may span several technical domains — an AI-powered application
+      could require artificial intelligence, web development and cloud deployment — and
+      hackathon preparation is itself listed among the activities domains run.
+    notes: >
+      Requires joining the cross-domain project statement in hackathons.txt with the
+      domain-activities sentence in domains.txt.
+
+  - id: q16
+    question: What part do domain leads play in hackathons?
+    type: multi_document
+    answerable: true
+    gold_documents: [leadership, hackathons]
+    gold_chunks: [leadership::c01, hackathons::c01]
+    reference_answer: >
+      Domain leads are responsible for encouraging participation in hackathons, and
+      during development mentors may provide technical guidance to participating teams.
+    notes: >
+      The documents never state that domain leads *are* the mentors, so a correct answer
+      should report both facts without asserting that link. A useful faithfulness probe.
+
+  - id: q17
+    question: What is the path from joining MLSC as a member to taking on a leadership role?
+    type: multi_document
+    answerable: true
+    gold_documents: [membership, leadership]
+    gold_chunks: [membership::c00, membership::c01, membership::c02, leadership::c02]
+    reference_answer: >
+      Students join as community members, which does not by itself make them
+      coordinators. They are encouraged to attend technical sessions and take part in
+      projects before applying, then coordinator positions are filled through the MLSC
+      recruitment process, judged on technical skills, willingness to contribute,
+      communication and teamwork. Coordinators then work under the guidance of domain
+      leads, with second-year coordinators gradually taking on more responsibility.
+    notes: Four gold chunks across two documents; the widest synthesis in this set.
+
+  - id: q18
+    question: Which MLSC activities involve people or organizations outside the community?
+    type: multi_document
+    answerable: true
+    gold_documents: [about_mlsc, hackathons]
+    gold_chunks: [about_mlsc::c03, hackathons::c00]
+    reference_answer: >
+      MLSC works with external technology communities, industry professionals and student
+      organizations for selected events and initiatives, and hackathons in particular may
+      be conducted in collaboration with external organizations.
+
+  - id: q19
+    question: How does MLSC support students who are new to technology?
+    type: multi_document
+    answerable: true
+    gold_documents: [membership, about_mlsc]
+    gold_chunks: [membership::c02, about_mlsc::c01]
+    reference_answer: >
+      Students do not need to be experts in every technology to take part, and MLSC aims
+      to create an environment where they learn through practical implementation rather
+      than only theoretical study.
+
+  - id: q20
+    question: What is the relationship between coordinators and domain leads?
+    type: multi_document
+    answerable: true
+    gold_documents: [leadership]
+    gold_chunks: [leadership::c01, leadership::c02]
+    reference_answer: >
+      Coordinators work under the guidance of domain leads. Leads assign them tasks,
+      mentor them, and are expected to help them develop their skills as well as
+      pursuing their own technical development.
+    notes: >
+      Two gold chunks in a *single* document. Included to test multi-chunk recall
+      separately from cross-document coverage — the per-document cap could hurt here,
+      which is exactly what should be measured rather than assumed.
+
+  # --- reasoning / synthesis ----------------------------------------------
+
+  - id: q21
+    question: Why might a hackathon project need people from more than one domain?
+    type: reasoning
+    answerable: true
+    gold_documents: [hackathons]
+    gold_chunks: [hackathons::c01]
+    reference_answer: >
+      Because projects may involve multiple technical domains — for example, an
+      AI-powered application could require artificial intelligence, web development and
+      cloud deployment.
+
+  - id: q22
+    question: What qualities make someone a good domain lead?
+    type: reasoning
+    answerable: true
+    gold_documents: [leadership]
+    gold_chunks: [leadership::c02]
+    reference_answer: >
+      A good domain lead should be able to explain technical concepts clearly, divide
+      projects into manageable tasks and provide constructive feedback, and should focus
+      on helping coordinators develop their skills as well as their own.
+
+  - id: q23
+    question: I am a member and want to become a coordinator. What should I do first?
+    type: reasoning
+    answerable: true
+    gold_documents: [membership]
+    gold_chunks: [membership::c02, membership::c01]
+    reference_answer: >
+      Attend technical sessions and take part in projects before applying. Coordinator
+      positions are then filled through the MLSC recruitment process, which evaluates
+      technical skills, willingness to contribute, communication and ability to work in a
+      team.
+
+  - id: q24
+    question: How is MLSC's approach to learning different from ordinary classroom study?
+    type: reasoning
+    answerable: true
+    gold_documents: [about_mlsc]
+    gold_chunks: [about_mlsc::c01]
+    reference_answer: >
+      MLSC aims to create an environment where students learn technologies through
+      practical implementation rather than only theoretical study.
+
+  - id: q25
+    question: Can a first-year student contribute to a technical project at MLSC?
+    type: reasoning
+    answerable: true
+    gold_documents: [membership, about_mlsc]
+    gold_chunks: [membership::c02, about_mlsc::c02]
+    reference_answer: >
+      Yes. Students do not need to be experts in every technology to participate, members
+      are encouraged to take part in projects, and the community encourages participation
+      in hackathons, technical competitions, open-source projects and collaborative
+      development.
+    notes: >
+      The documents never mention first-year students explicitly. A correct answer
+      generalises from "students do not need to be experts" rather than claiming a
+      first-year-specific rule — worth watching for over-claiming.
+
+  # --- ambiguous / differently worded --------------------------------------
+
+  - id: q26
+    question: What areas can I work on at MLSC?
+    type: ambiguous
+    answerable: true
+    gold_documents: [domains, about_mlsc]
+    gold_chunks: [domains::c01, about_mlsc::c01]
+    reference_answer: >
+      MLSC's technical domains are Artificial Intelligence and Machine Learning, Web
+      Development, App Development, Cloud Computing and Web3, and the community is open
+      to students interested in areas such as artificial intelligence, machine learning,
+      web development, application development, cloud computing and emerging
+      technologies.
+    notes: >
+      Genuinely ambiguous between the formal domain list and the informal "areas of
+      interest" sentence. Both labelled gold, since either reading is defensible.
+
+  - id: q27
+    question: Tell me about the leads.
+    type: ambiguous
+    answerable: true
+    gold_documents: [leadership]
+    gold_chunks: [leadership::c00, leadership::c01]
+    reference_answer: >
+      Each technical domain has two domain leads, who work with the Technical Head to
+      plan technical activities. They plan the learning roadmap for their domain, assign
+      tasks to coordinators, run knowledge-sharing sessions, review technical projects,
+      mentor coordinators, encourage hackathon participation and coordinate cross-domain
+      projects when required.
+    notes: Terse and underspecified on purpose; tests robustness to vague phrasing.
+
+  - id: q28
+    question: What do I need to know about behaving properly in the community?
+    type: ambiguous
+    answerable: true
+    gold_documents: [code_of_conduct]
+    gold_chunks: [code_of_conduct::c00, code_of_conduct::c01]
+    reference_answer: >
+      Members are expected to maintain a respectful and inclusive environment and to
+      communicate respectfully with students, coordinators, leads, mentors and external
+      collaborators. Harassment, discrimination, plagiarism and disruption are not
+      acceptable, intellectual property must be respected and external resources
+      acknowledged, and technical disagreements should be handled professionally.
+      Violations may lead to removal from activities or other action by the leadership
+      team.
+    notes: >
+      Paraphrase — the phrase "code of conduct" never appears in the question, so lexical
+      matching has little to work with and dense retrieval has to carry it.
+
+  # --- unanswerable: near miss ---------------------------------------------
+  # The topic is present and retrieval scores high. No similarity threshold can catch
+  # these, which is the entire justification for abstention gate 2.
+
+  - id: q29
+    question: Who is the current Technical Head of MLSC?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base describes the Technical Head role and its responsibilities but
+      does not name the person currently holding it.
+    notes: >
+      The sharpest case in the set. Best cosine ~0.75, indistinguishable from answerable
+      questions. Paired with q13, which asks what the Technical Head does and IS
+      answerable from the same chunk.
+
+  - id: q30
+    question: What is the MLSC membership fee?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base explains how membership works but does not mention any fee.
+
+  - id: q31
+    question: What programming languages does the Web Development domain teach?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base describes the Web Development domain as covering frontend
+      development, backend development, APIs, databases and full-stack applications, but
+      does not name any specific programming languages.
+    notes: >
+      Retrieval will return exactly the right chunk. Answering requires noticing that a
+      list of sub-areas is not a list of languages.
+
+  - id: q32
+    question: How many coordinators does each domain have?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base states that each technical domain has two domain leads but does
+      not give a number of coordinators per domain.
+    notes: >
+      Adversarial: the retrieved chunk contains a nearby count ("two domain leads"), so a
+      careless model may report it as the coordinator count.
+
+  - id: q33
+    question: How long does the MLSC recruitment process take?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base says coordinators are selected through a recruitment process but
+      does not state how long it takes.
+
+  - id: q34
+    question: Which company sponsors MLSC hackathons?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base says hackathons may be run in collaboration with external
+      organizations but does not name any sponsor.
+
+  # --- unanswerable: off domain --------------------------------------------
+  # Nothing related exists in the corpus. These are what abstention gate 1 can catch,
+  # and the only unanswerable class a threshold alone handles.
+
+  - id: q35
+    question: When was MLSC VIT Pune founded?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base does not state when MLSC VIT Pune was founded.
+
+  - id: q36
+    question: How many members does MLSC currently have?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base describes membership but does not give a member count.
+
+  - id: q37
+    question: What email address should I use to contact MLSC?
+    type: unanswerable
+    subtype: off_domain
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base does not contain any contact details for MLSC.
+
+  - id: q38
+    question: Who won the IPL final in 2024?
+    type: unanswerable
+    subtype: off_domain
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      That is outside the MLSC knowledge base, which covers only the community, its
+      domains, leadership, membership, hackathons and code of conduct.
+
+  - id: q39
+    question: What is the capital of France?
+    type: unanswerable
+    subtype: off_domain
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      That is outside the MLSC knowledge base.
+    notes: >
+      A fact the model certainly knows from pretraining. Answering it would be correct in
+      the world and wrong for this system, which must answer only from the knowledge
+      base. The sharpest test of grounding as opposed to knowledge.
+
+  - id: q40
+    question: Does MLSC offer paid internships?
+    type: unanswerable
+    subtype: near_miss
+    answerable: false
+    gold_documents: []
+    gold_chunks: []
+    reference_answer: >
+      The knowledge base does not mention internships, paid or otherwise.

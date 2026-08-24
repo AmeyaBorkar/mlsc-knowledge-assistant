@@ -22,6 +22,7 @@ Stopword removal
 from __future__ import annotations
 
 import re
+from collections import Counter
 from collections.abc import Sequence
 from functools import cache, lru_cache
 from typing import Any
@@ -159,10 +160,12 @@ class BM25Retriever:
         b: float = 0.75,
         stem: bool = True,
         index_title: bool = True,
+        max_document_frequency: float = 0.5,
     ) -> None:
         self.chunks = list(chunks)
         self.stem = stem
         self.index_title = index_title
+        self.max_document_frequency = max_document_frequency
         self._tokenised = [
             tokenize(c.embed_text if index_title else c.text, stem=stem) for c in self.chunks
         ]
@@ -170,13 +173,34 @@ class BM25Retriever:
             BM25Okapi(self._tokenised, k1=k1, b=b) if self._tokenised else None
         )
         self._term_sets = [set(t) for t in self._tokenised]
+        self._doc_freq = Counter(term for terms in self._term_sets for term in terms)
+
+    def discriminative_terms(self, terms: Sequence[str]) -> list[str]:
+        """Keep only query terms that actually narrow the corpus.
+
+        A term appearing in more than ``max_document_frequency`` of the chunks carries
+        almost no information about *which* chunk is relevant. BM25's IDF down-weights
+        such terms but does not eliminate them: Okapi floors negative IDF at a small
+        positive epsilon, so a ubiquitous term still contributes a score driven by term
+        frequency and length normalisation — that is, by noise.
+
+        Measured consequence of not doing this: "What is MLSC?" reduces to the single
+        term ``mlsc``, which appears in 18 of 18 chunks. BM25 then ranks by little more
+        than chunk length, and fusing that opinion with dense retrieval's real signal
+        pushed the correct chunk out of the results entirely on a question dense had
+        answered perfectly.
+        """
+        ceiling = max(1.0, len(self.chunks) * self.max_document_frequency)
+        return [t for t in terms if self._doc_freq.get(t, 0) <= ceiling]
 
     def search(self, query: str, k: int) -> list[tuple[Chunk, float]]:
         if self._index is None:
             return []
 
-        terms = tokenize(query, stem=self.stem)
+        terms = self.discriminative_terms(tokenize(query, stem=self.stem))
         if not terms:
+            # No discriminative term: BM25 has no opinion worth fusing, so it abstains
+            # and hybrid retrieval degrades to dense for this query.
             return []
 
         scores = self._index.get_scores(terms)

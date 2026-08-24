@@ -45,6 +45,7 @@ class HybridRetriever:
         bm25_k1: float = 1.5,
         bm25_b: float = 0.75,
         bm25_index_title: bool = True,
+        bm25_max_document_frequency: float = 0.5,
         reranker: Reranker | None = None,
     ) -> None:
         chunks = store.all_chunks()
@@ -54,7 +55,13 @@ class HybridRetriever:
         self.dense = DenseRetriever(embedder, store)
         # BM25 builds its index once at construction, not per query. The API holds one
         # retriever for the process lifetime, so per-request rebuilding would be pure waste.
-        self.lexical = BM25Retriever(chunks, k1=bm25_k1, b=bm25_b, index_title=bm25_index_title)
+        self.lexical = BM25Retriever(
+            chunks,
+            k1=bm25_k1,
+            b=bm25_b,
+            index_title=bm25_index_title,
+            max_document_frequency=bm25_max_document_frequency,
+        )
 
         self.strategy = strategy
         self.top_k = top_k

@@ -42,31 +42,35 @@ retrieval:
     k1: 1.5
     b: 0.75
     index_title: true      # measured: dropping it loses the domain-list chunk entirely
+    max_document_frequency: 0.5   # drop query terms in >50% of chunks; they rank by noise
   rerank:
     enabled: false              # an 18-chunk corpus cannot justify the latency
     backend: llm
 
 abstention:
-  # Gate 1 — retrieval threshold. PLACEHOLDER, and `calibrated: false` says so.
+  # Gate 1 — retrieval threshold. CALIBRATED, not hand-picked.
   #
-  # Measured on this corpus (best cosine, query vs chunk):
-  #     off-domain question  ("who won the IPL final?")      0.43
-  #     near-miss unanswerable ("current Technical Head?")   0.75
-  #     near-miss unanswerable ("membership fee?")           0.74
-  #     genuinely answerable questions                       0.67 - 0.90
+  # `mlsc eval` sweeps this across the dev set and reports the abstention
+  # precision/recall curve. The measured curve (hybrid, k=6, 40 questions):
   #
-  # Two things follow. A threshold near 0.55 cleanly separates off-domain questions and
-  # nothing else. The near-miss unanswerables sit *inside* the answerable range, so no
-  # threshold can catch them — that is gate 2's job, and it is why gate 1 alone would be
-  # a false comfort. (Separately, two unrelated passages *within* the corpus score 0.65;
-  # bge-small has a high floor, so "unrelated means near zero" is simply wrong here.)
+  #   thresh   abst.P  abst.R  halluc  over-refuse  near-miss R  off-domain R
+  #   0.550     1.00    0.17    0.83      0.00          0.00         0.67
+  #   0.650     0.60    0.25    0.75      0.07          0.00         1.00
+  #   0.750     0.45    0.75    0.25      0.39          0.67         1.00
+  #   0.800     0.38    1.00    0.00      0.71          1.00         1.00
   #
-  # `mlsc calibrate` sweeps this and reports the abstention precision/recall curve. The
-  # committed value must come from that sweep, with its rationale in docs/EVALUATION.md,
-  # and `calibrated` flipped to true.
-  min_dense_score: 0.35
+  # 0.55 is the highest threshold that refuses no answerable question at all. Above it,
+  # over-refusal starts immediately and near-miss recall stays at zero until 0.75 — by
+  # which point 39% of answerable questions are being refused. Catching near misses with
+  # a threshold is therefore not merely suboptimal, it is impossible at any usable
+  # operating point. That is gate 2's job, measured rather than argued.
+  #
+  # Rationale for the choice: gate 1 runs before the LLM and should cheaply remove
+  # obvious noise without ever harming a real question, so zero over-refusal is the
+  # binding constraint and F1 is not.
+  min_dense_score: 0.55
   min_score_margin: 0.0         # gap between rank 1 and rank 2; 0 disables the check
-  calibrated: false
+  calibrated: true
   require_sufficient_context: true    # gate 2
   verify_faithfulness: false          # gate 3 — costs an extra call
 

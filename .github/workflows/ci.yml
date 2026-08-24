@@ -64,6 +64,13 @@ jobs:
       - name: Integration tests against the real embedding model
         run: pytest -m integration
 
-      # Phase 3 replaces this with the real gate:
-      #   mlsc eval --metrics retrieval --fail-under recall_at_k=0.80
-      # It needs the evaluation set, which does not exist yet.
+      # The real quality gate. Thresholds sit just below the measured values
+      # (recall 0.955, MRR 0.912, nDCG 0.891) so ordinary noise does not fail the
+      # build but a genuine regression does. This runs with no API key at all —
+      # see docs/DECISIONS.md D4, which is what makes gating retrieval possible.
+      - name: Retrieval quality gate
+        run: >
+          mlsc eval --quiet
+          --fail-under recall_at_k=0.90
+          --fail-under mrr=0.85
+          --fail-under ndcg_at_k=0.85

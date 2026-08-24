@@ -28,6 +28,14 @@ honestly; RRF uses ranks only, so it is scale-free with one interpretable consta
 retrievers rank first with wildly different confidence looks the same as one they merely agree
 on. The retrieval gate compensates by reading raw dense scores, not fused ranks.
 
+**Verdict (Phase 3, measured).** Partially upheld, and worth stating precisely. On 28 scored
+questions hybrid wins MRR (0.912 vs 0.858) and nDCG (0.891 vs 0.866), ties R-Precision, and
+**loses recall** (0.955 vs 0.973). Hybrid stays the default because ranking quality determines
+what the generator attends to, but the recall gap is half a question and dense-only is a
+defensible alternative that config already supports. The original claim — that fusion beats
+both components outright — is not what the data shows, and D11 explains why an earlier version
+of this design was losing outright.
+
 ---
 
 ## D2 — NumPy as the default vector store, Chroma as an adapter
@@ -195,3 +203,38 @@ broken request, and would make client retry logic actively harmful.
 
 **Cost.** Clients must read `answered` rather than only the status code. Documented in
 `docs/API.md` and visible in the response shape.
+
+
+---
+
+## D11 — BM25 abstains when no query term discriminates
+
+**Context.** Phase 2 measured hybrid retrieval *losing* to dense-only, which contradicted D1.
+The cause turned out to be specific and fixable rather than fundamental.
+
+The question "What is MLSC?" reduces, after stopword removal, to the single term ``mlsc`` —
+which appears in **18 of 18 chunks**. BM25 Okapi floors negative IDF at a small positive
+epsilon, so a corpus-ubiquitous term still contributes a score, driven by term frequency and
+length normalisation. That is not relevance, it is noise about chunk length. RRF then weighted
+that noise equally against dense retrieval's real signal, and the correct chunk fell out of the
+results entirely on a question dense had answered perfectly.
+
+**Decision.** Drop query terms whose document frequency exceeds a ceiling (default 50% of the
+corpus) before scoring. If no discriminative term survives, BM25 returns nothing and hybrid
+retrieval falls back to dense for that query.
+
+**Rejected.** *Relying on IDF alone* — it down-weights ubiquitous terms but does not eliminate
+them, which is exactly the failure above. *Lowering `rrf_k` so rank 1 dominates the tail* — the
+Phase 2 hypothesis; measured in Phase 3 and it changes nothing, because the problem was the
+input to fusion rather than the fusion constant. *Tuning `candidate_k`* — likewise measured, and
+likewise no effect.
+
+**Measured effect.** Hybrid recall 0.920 → 0.955, MRR 0.875 → 0.912, nDCG 0.849 → 0.891. It also
+restored the brief's own example question ("What technical domains exist in MLSC?") to rank 1,
+where BM25 now correctly abstains: its only surviving terms are `domain` at exactly 50% document
+frequency, where Okapi's IDF is precisely zero, and `exist`, which does not occur in the corpus.
+
+**Cost.** One more parameter, and a threshold that is a heuristic rather than a derived
+constant. On a much larger corpus a 50% ceiling would be far too permissive to matter, so this
+is a small-corpus adaptation and should be revisited if the knowledge base grows. Setting
+`max_document_frequency: 1.0` disables it, which is how the ablation was run.
