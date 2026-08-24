@@ -1,7 +1,8 @@
 # Evaluation methodology
 
-> Status: **retrieval metrics implemented and run** (see Results at the end). Generation
-> and LLM-judged abstention metrics arrive in Phase 7.
+> Status: **complete**. Every metric family is implemented and measured; results are at
+> the end. The one outstanding item is the RAGAS cross-check, which is blocked on free-tier
+> quota rather than on design.
 
 The brief asks for context precision, context recall, answer relevancy and faithfulness, and
 says we must be able to justify the metrics we report. This document is that justification.
@@ -131,9 +132,17 @@ We implement the metrics ourselves and run RAGAS as a **cross-check**, because:
 4. Our retrieval metrics need no LLM at all; running them through a framework that assumes one
    would make CI depend on an API key for no benefit.
 
-RAGAS remains an optional extra (`pip install -e ".[ragas]"`, `mlsc eval --with-ragas`). Where
-our faithfulness and answer relevancy diverge from theirs, the divergence gets investigated and
-written up. Two independent implementations agreeing is stronger evidence than either alone.
+RAGAS remains an optional extra (`pip install -e ".[ragas]"`). **The cross-check has not been
+run**, and the reason is quota rather than principle: RAGAS issues its own judge calls, and a
+second full pass does not fit in the free-tier daily allowance that already constrained the
+primary run. Stated as an open item rather than quietly dropped — two independent
+implementations agreeing would be stronger evidence than either alone, and that evidence does
+not exist yet.
+
+What the in-repo implementation *did* buy, which importing a framework would not have: the
+faithfulness metric was measuring truncation for a while (see the Results section), and that
+was findable because the twenty lines feeding passages to the judge were readable. A framework
+returning 0.556 would have been much harder to disbelieve.
 
 ## 7. The evaluation set
 
@@ -342,9 +351,107 @@ grounded, cited and still wrong or incomplete, and nothing here would catch that
 
 Raw per-question log: [`evaluation/reports/abstention-phase4.log`](../evaluation/reports/abstention-phase4.log).
 
-### What this does not yet measure
+### Answer quality — the LLM-judged metrics
 
-Faithfulness, answer relevancy and answer correctness all need an LLM judge and arrive in
-Phase 7. The retrieval numbers say what the generator has to work with; the abstention
-numbers say when it declines to use it. Neither says whether the answers it *does* give
-are good.
+Model `gemini-3.1-flash-lite` answering and judging, temperature 0, thinking disabled,
+hybrid retrieval at k=6. All 40 questions answered; **27 answered questions judged**, since
+the 13 refusals have no answer to score. 69 judge calls, 12 served from cache.
+
+| Metric | Score |
+|---|---|
+| **Faithfulness** (claim-level, against cited passages) | **0.981** |
+| **Answer correctness** (against reference answers) | **0.944** |
+| **Answer relevancy** (question similarity, embedding-based) | **0.800** |
+
+#### By question type — and why relevancy is the odd one out
+
+| Type | Faithfulness | Relevancy | Correctness |
+|---|---|---|---|
+| direct | 1.000 | 0.835 | 0.964 |
+| multi_document | 0.917 | 0.785 | 0.917 |
+| reasoning | 1.000 | 0.789 | 0.875 |
+| **ambiguous** | **1.000** | **0.684** | **1.000** |
+
+The ambiguous row is the interesting one, and it is a **metric artefact rather than a
+system failure**. Those answers score a perfect 1.000 on both faithfulness and
+correctness — they are fully grounded and fully agree with the reference — while scoring
+lowest on relevancy.
+
+The cause is structural. Answer relevancy works by asking the model what questions the
+answer would answer, embedding those, and comparing them to the original. When the
+original is terse, its embedding sits far from any well-formed question, so the score
+falls however good the answer is. Q27 is the clearest case:
+
+> **Question:** "Tell me about the leads."
+> **Answer:** correct, complete, cited, judged 1.00 on faithfulness *and* correctness.
+> **Relevancy: 0.59** — because the generated question "How is the MLSC technical team
+> structured and managed?" is a perfectly good rendering of a question that was never
+> phrased that well to begin with.
+
+So answer relevancy on this corpus partly measures **how well the question was worded**.
+That is worth knowing before quoting 0.800 as an answer-quality figure, and it is the
+kind of thing that only shows up when the metric is implemented rather than imported.
+
+#### Where the system genuinely lost points
+
+Three questions scored below 1.0 on correctness, and all three are **omissions rather than
+inventions** — the safer failure direction, but real:
+
+| Question | Score | What was missing |
+|---|---|---|
+| q12 "What is MLSC?" | 0.50 | omitted the activities list (workshops, hackathons, study sessions) |
+| q16 "What part do domain leads play in hackathons?" | 0.50 | omitted that mentors provide guidance during development |
+| q22 "What qualities make a good domain lead?" | 0.50 | omitted "helping coordinators develop their skills" |
+
+Q16 is also the only faithfulness miss (0.50). The judge flagged "encouraging
+participation in hackathons **among members of the community**" — the qualifier is not in
+the source. This is the question whose trap the dataset notes flagged when it was written:
+the documents never state that domain leads *are* the mentors, and a correct answer has to
+report both facts without asserting the link. The system reported one and added a small
+unsourced qualifier to it.
+
+#### Human spot-check of the judge
+
+An LLM judge is a measuring instrument, so four cases were graded by hand and compared:
+
+| Question | Judge verdict | My reading | Agree? |
+|---|---|---|---|
+| q12 correctness 0.50 | omits the activity list | same | ✅ |
+| q22 correctness 0.50 | omits coordinator development | same | ✅ |
+| q27 faith 1.00 / corr 1.00 | answer is complete and grounded | same | ✅ |
+| q16 faithfulness 0.50 | "among members of the community" unsupported | **too harsh** — a reasonable inference, not a fabrication; I would score 0.75–1.00 | ⚠️ |
+
+Three of four agree. The disagreement is the judge being *stricter* than a human on an
+added qualifier, which is the direction to prefer in a faithfulness metric and is a direct
+consequence of the prompt instructing it that added specifics are unsupported. Reported
+rather than tuned away: adjusting the prompt until the judge agreed with me would be
+fitting the instrument to the result.
+
+#### The self-preference caveat, restated
+
+The same model family answers and judges, which risks self-preference bias. Faithfulness
+of 0.981 should be read with that in mind. Two things limit it: the spot-check above found
+the judge harsher than a human rather than more lenient, and `evaluation.judge.provider`
+points the judge at a different backend in one line, because the judge talks to the same
+`LLMProvider` port as everything else. Running that comparison needs quota this project
+does not currently have.
+
+#### Cost, and why the cache exists
+
+The run costs roughly one call per question plus three per answered question — about 120
+calls, or six times the daily free-tier allowance of the previously configured model.
+Judge verdicts are cached by content hash, so re-rendering a report is nearly free; 12 of
+this run's verdicts came from cache. A metric you cannot afford to re-run is a metric you
+stop checking.
+
+### What this still does not measure
+
+RAGAS was not run as a cross-check: it needs its own judge calls, and the free-tier quota
+that constrained this run does not stretch to a second full pass. That comparison is the
+one outstanding item in the methodology above, and it is outstanding for a resource reason
+rather than a design one.
+
+Two further gaps worth naming. The dev set is 40 questions written by the same person who
+built the system, so it may under-represent phrasings a stranger would use — MLSC's own
+evaluation set is the real test. And nothing here measures latency or cost under load; the
+timings in these runs are dominated by deliberate rate-limiting.

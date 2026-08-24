@@ -30,6 +30,7 @@ models/
 # Evaluation output (reports are committed selectively, raw runs are not)
 evaluation/runs/*
 !evaluation/runs/.gitkeep
+evaluation/runs/judge-cache.json
 
 # OS / editor
 .DS_Store

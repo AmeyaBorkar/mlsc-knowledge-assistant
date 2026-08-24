@@ -27,6 +27,7 @@ obvious noise for free, never harm a real question.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any
@@ -222,7 +223,7 @@ class GroundedAnswerer:
                 provider=self.provider,
                 question=question,
                 answer=text,
-                citations=citations,
+                passages=self.cited_passages(citations),
                 temperature=self.settings.llm.temperature,
             )
             extra["verification"] = verdict.as_dict()
@@ -296,6 +297,19 @@ class GroundedAnswerer:
         if cfg.min_score_margin > 0 and retrieval.score_margin < cfg.min_score_margin:
             return "fail_low_margin"
         return None
+
+    def cited_passages(self, citations: Sequence[Citation]) -> list[tuple[str, str]]:
+        """Full text of each cited chunk, for anything that judges the answer.
+
+        Citations carry a truncated ``snippet`` for display. Judging against that would
+        measure truncation rather than faithfulness, so grading paths resolve the chunk
+        and use its whole text.
+        """
+        return [
+            (c.chunk_id, chunk.text)
+            for c in citations
+            if (chunk := self.retriever.chunks_by_id.get(c.chunk_id)) is not None
+        ]
 
     def _bind_citations(
         self, cited: Any, context: tuple[ScoredChunk, ...]

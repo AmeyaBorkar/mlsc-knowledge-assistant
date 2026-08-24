@@ -17,11 +17,11 @@ by construction.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from mlsc_assistant.core.errors import StructuredOutputError
-from mlsc_assistant.core.models import Citation
 from mlsc_assistant.core.ports import LLMProvider
 
 VERIFIER_PROMPT_VERSION = "verify-v1"
@@ -85,25 +85,32 @@ def verify_answer(
     provider: LLMProvider,
     question: str,
     answer: str,
-    citations: tuple[Citation, ...],
+    passages: Sequence[tuple[str, str]],
     temperature: float = 0.0,
 ) -> VerificationResult:
-    """Check the answer against its own citations.
+    """Check the answer against its own cited passages.
 
     Checks against *cited* passages rather than everything retrieved. That is the
     stricter reading and the honest one: the citations are what the system claims the
     answer rests on and what the user is shown, so grading against unrelated retrieved
     context would let an answer pass on evidence it never pointed to.
+
+    ``passages`` carries **full chunk text**, not the display snippet. This is not a
+    detail: snippets are truncated to 240 characters for rendering, and an earlier
+    version passed those here. The verifier then dutifully reported the truncated tail as
+    unsupported — "Each technical domain has two domain leads" was judged unsupported by
+    the very chunk that ends with that sentence. Verifying against what the user sees is
+    the wrong instinct; verify against what the answer was actually built from.
     """
-    if not citations:
+    if not passages:
         return VerificationResult(
             supported=False,
             unsupported_claims=(answer,),
             reason="The answer cites no passages, so nothing supports it.",
         )
 
-    passages = "\n\n".join(f"[{c.chunk_id}] {c.snippet}" for c in citations)
-    prompt = f"Cited passages:\n\n{passages}\n\nQuestion: {question}\n\nAnswer to check:\n{answer}"
+    rendered = "\n\n".join(f"[{chunk_id}] {text}" for chunk_id, text in passages)
+    prompt = f"Cited passages:\n\n{rendered}\n\nQuestion: {question}\n\nAnswer to check:\n{answer}"
 
     try:
         response = provider.complete_structured(

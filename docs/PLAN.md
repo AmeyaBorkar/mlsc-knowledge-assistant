@@ -284,7 +284,7 @@ the demo.**
 
 ---
 
-### Phase 7 — Full evaluation and the write-up *(~60 min)*
+### Phase 7 — Full evaluation and the write-up *(~60 min)* — **done**
 
 - `evaluation/metrics/generation.py` (faithfulness, relevancy, correctness) + `judge.py`
 - `evaluation/metrics/abstention.py`
@@ -295,7 +295,50 @@ the demo.**
   point with rationale, and an honest list of remaining failures
 
 **Done when:** `docs/EVALUATION.md` has real numbers and a paragraph on what the system still
-gets wrong.
+gets wrong. It does.
+
+#### Results
+
+| Metric | Score |
+|---|---|
+| Faithfulness | 0.981 |
+| Answer correctness | 0.944 |
+| Answer relevancy | 0.800 |
+| Abstention F1 | 0.960 |
+| Hallucination rate | 0.000 |
+| Retrieval recall@6 | 0.955 |
+
+#### What this phase found
+
+**1. A real bug in my own faithfulness metric, caught by disbelieving a bad number.** The
+first run scored 0.556, including a flat **0.00 on an answer quoted verbatim from its own
+source**. The judge was right and the code was wrong: `_evaluate_one` passed
+`citation.snippet` to the judge, which is truncated to 240 characters *for display*. The
+judge dutifully reported the cut-off tail as unsupported — "Each technical d|omain has two
+domain leads" was severed mid-word. Faithfulness rose to **0.981** once full chunk text was
+passed. The same bug was in **gate 3**, where it would have falsely refused correct answers
+in production rather than merely mis-scoring them.
+
+**2. Answer relevancy partly measures question phrasing, not answer quality.** Ambiguous
+questions score 1.000 faithfulness and 1.000 correctness while scoring **0.684** relevancy.
+"Tell me about the leads." gets a perfect, grounded, cited answer and 0.59 relevancy,
+because the metric compares the original question's embedding to well-formed generated ones
+and a terse original sits far from all of them. Worth knowing before quoting 0.800 as an
+answer-quality number.
+
+**3. Every remaining failure is an omission, not an invention.** Three questions scored 0.50
+on correctness by leaving out a fact the reference includes. Nothing was fabricated, which
+is the failure direction to prefer, and it is consistent with a hallucination rate of 0.000.
+
+**4. The human spot-check found the judge harsher than me, not more lenient.** Three of four
+hand-graded cases agreed; the fourth had the judge rejecting a reasonable inferred qualifier
+that I would have allowed. Reported rather than tuned away — adjusting the judge prompt
+until it agreed with me would be fitting the instrument to the result.
+
+**5. RAGAS cross-check not run, for quota reasons.** It issues its own judge calls and a
+second full pass does not fit the free-tier daily allowance. Recorded as an open item.
+Notably, owning the metrics is what made finding bug #1 possible: a framework returning
+0.556 would have been far harder to disbelieve than twenty readable lines.
 
 ---
 

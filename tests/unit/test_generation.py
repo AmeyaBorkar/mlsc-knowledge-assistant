@@ -68,6 +68,9 @@ class StubRetriever:
         self._chunks = chunks
         self._dense = dense_score
         self.corpus_size = max(len(chunks), 1)
+        # The answerer resolves full chunk text through this map when building passages
+        # for gate 3, so the stub has to carry it too.
+        self.chunks_by_id = {sc.chunk.chunk_id: sc.chunk for sc in chunks}
 
     def retrieve(self, query: str, **_: Any) -> RetrievalResult:
         scored = tuple(
@@ -372,16 +375,58 @@ def test_verifier_trusts_the_claim_list_over_the_flag() -> None:
         provider=provider,  # type: ignore[arg-type]
         question="q",
         answer="a",
-        citations=_answerer(StubProvider(GOOD), _scored("leadership::c01")).answer("q").citations,
+        passages=[("leadership::c01", "Some passage text.")],
     )
     assert not result.supported
 
 
 def test_verifier_refuses_when_there_is_nothing_to_check() -> None:
     provider = StubProvider()
-    result = verify_answer(provider=provider, question="q", answer="a", citations=())  # type: ignore[arg-type]
+    result = verify_answer(provider=provider, question="q", answer="a", passages=[])  # type: ignore[arg-type]
     assert not result.supported
     assert provider.calls == [], "no call needed when there are no citations"
+
+
+def test_verifier_receives_full_text_not_the_truncated_snippet() -> None:
+    """Regression for a bug that made faithfulness measure truncation.
+
+    Citations carry a 240-character snippet for display. An earlier version passed that
+    to the verifier and to the faithfulness metric, which then reported the cut-off tail
+    as unsupported — an answer quoted verbatim from its own source scored 0.00, and the
+    judge was right. Verify against what the answer was built from, not what is rendered.
+    """
+    long_text = (
+        "The MLSC technical team follows a hierarchical structure designed to encourage "
+        "mentorship and knowledge sharing. The Technical Head coordinates the technical "
+        "domains and works with domain leads to plan technical activities. "
+        "Each technical domain has two domain leads."
+    )
+    assert len(long_text) > 240, "the fixture must actually exceed the snippet limit"
+
+    chunk = _chunk("leadership::c00", text=long_text)
+    answerer = _answerer(
+        StubProvider(
+            {
+                "sufficient_context": True,
+                "answer": "Each technical domain has two domain leads.",
+                "cited_chunk_ids": ["leadership::c00"],
+                "confidence": "high",
+            }
+        ),
+        (ScoredChunk(chunk=chunk, score=0.9, rank=1),),
+    )
+    citations = answerer.answer("q").citations
+
+    # The rendered snippet loses the final sentence...
+    assert citations[0].snippet.endswith("...")
+    assert "two domain leads" not in citations[0].snippet
+    # ...but what gets judged is the whole chunk.
+    passages = answerer.cited_passages(citations)
+    assert "two domain leads" in passages[0][1]
+
+    provider = StubProvider({"supported": True, "unsupported_claims": [], "reason": "ok"})
+    verify_answer(provider=provider, question="q", answer="a", passages=passages)  # type: ignore[arg-type]
+    assert "two domain leads" in provider.calls[0]["prompt"]
 
 
 # ---------------------------------------------------------------------------

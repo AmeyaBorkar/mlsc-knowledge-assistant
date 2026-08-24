@@ -6,10 +6,10 @@ base does not contain the answer** rather than inventing something plausible.
 
 Built for the MLSC AI/ML Domain Lead recruitment challenge.
 
-> **Status: Phases 0-5 complete.** The full pipeline works over CLI and HTTP: `mlsc serve`
-> exposes `/v1/ask`, `/v1/search`, `/v1/documents` and `/v1/eval` with interactive docs at
-> `/docs`. Everything except `/v1/ask` runs with no API key. The web UI and LLM-judged
-> answer-quality metrics are what remain. Real numbers in
+> **Status: functionally complete.** The pipeline runs over CLI and HTTP, and every metric
+> family the brief asks for is measured — see [results](docs/EVALUATION.md#results). What
+> remains is the optional web UI (Phase 6) and a final polish pass; the brief explicitly
+> weights correctness over UI. Real numbers in
 > [`docs/EVALUATION.md`](docs/EVALUATION.md#results); what went wrong along the way is in
 > [`docs/PLAN.md`](docs/PLAN.md).
 
@@ -138,14 +138,22 @@ cannot tell you whether to fix the chunker, the prompt or the threshold.
   R-precision, average precision, MRR, nDCG@k, document recall, multi-document coverage.
   **Measured: recall@6 0.955, MRR 0.912, nDCG@6 0.891, multi-doc coverage 1.000** on a
   40-question dev set
-- **Generation** *(LLM as judge, cached and seeded)* — faithfulness (claim-level), answer
-  relevancy, answer correctness
-- **Abstention** — precision, recall, F1, **hallucination rate**, over-refusal rate
+- **Generation** *(LLM as judge, cached and seeded)* — **faithfulness 0.981**, answer
+  correctness 0.944, answer relevancy 0.800 across 27 judged answers
+- **Abstention** — **F1 0.960, hallucination rate 0.000**, over-refusal 0.036; all 12
+  unanswerable questions refused
 
 That last group matters most here and is the one RAGAS does not really cover: **a system that
 refuses every question scores a perfect 1.0 on faithfulness.** Only abstention metrics expose
 that, and hallucination rate and over-refusal rate are always reported as a pair, since a
-threshold can be moved to make either look excellent alone.
+threshold can be moved to make either look excellent alone. For the same reason, refusals are
+excluded from the generation metrics — an abstention cites nothing and claims nothing, so
+averaging it into faithfulness would flatter the score.
+
+Owning the metric implementations paid for itself: faithfulness first measured **0.556**, and
+the cause turned out to be my own code passing the judge a *display-truncated* passage rather
+than the full chunk. A framework returning that number would have been much harder to
+disbelieve.
 
 Metrics are implemented in-repo (~200 readable lines) with RAGAS available as an optional
 cross-check. Reasoning for that, and full definitions, in

@@ -1,0 +1,70 @@
+{
+  "primary_k": 6,
+  "counts": {
+    "evaluated": 40,
+    "judged": 27
+  },
+  "retrieval": {
+    "6": {
+      "precision_at_k": 0.2261904761904762,
+      "recall_at_k": 0.9553571428571429,
+      "r_precision": 0.7410714285714286,
+      "average_precision": 0.844047619047619,
+      "mrr": 0.911904761904762,
+      "ndcg_at_k": 0.8913905610667535,
+      "doc_recall": 1.0,
+      "all_docs_hit_rate": 1.0
+    }
+  },
+  "generation": {
+    "answer_correctness": 0.9444444444444444,
+    "answer_relevancy": 0.8004924950475902,
+    "faithfulness": 0.9814814814814815
+  },
+  "generation_by_type": {
+    "ambiguous": {
+      "answer_correctness": 1.0,
+      "answer_relevancy": 0.6844110605936913,
+      "faithfulness": 1.0
+    },
+    "direct": {
+      "answer_correctness": 0.9642857142857143,
+      "answer_relevancy": 0.835345715697474,
+      "faithfulness": 1.0
+    },
+    "multi_document": {
+      "answer_correctness": 0.9166666666666666,
+      "answer_relevancy": 0.785059496352944,
+      "faithfulness": 0.9166666666666666
+    },
+    "reasoning": {
+      "answer_correctness": 0.875,
+      "answer_relevancy": 0.7887167966553906,
+      "faithfulness": 1.0
+    }
+  },
+  "abstention": {
+    "precision": 0.9230769230769231,
+    "recall": 1.0,
+    "f1": 0.9600000000000001,
+    "hallucination_rate": 0.0,
+    "over_refusal_rate": 0.03571428571428571
+  },
+  "abstention_by_subtype": {
+    "near_miss": {
+      "caught": 9,
+      "total": 9,
+      "recall": 1.0
+    },
+    "off_domain": {
+      "caught": 3,
+      "total": 3,
+      "recall": 1.0
+    }
+  },
+  "judge": {
+    "calls": 69,
+    "cache_hits": 12,
+    "model": "gemini-3.1-flash-lite"
+  }
+}

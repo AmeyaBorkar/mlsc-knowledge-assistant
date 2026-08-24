@@ -6,13 +6,13 @@ not imported by `mlsc index` or `mlsc search`.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from mlsc_assistant.config import get_settings
+from mlsc_assistant.config import Settings, get_settings
 from mlsc_assistant.core.errors import InvalidRequestError, MLSCError
 from mlsc_assistant.core.models import RetrievalStrategy
 from mlsc_assistant.evaluation.dataset import resolve_dataset, validate_against_index
@@ -51,8 +51,15 @@ def eval_command(
         str, typer.Option("--strategy", "-s", help="hybrid | dense | lexical")
     ] = "",
     metrics: Annotated[
-        str, typer.Option("--metrics", help="Which families to run. Only 'retrieval' so far.")
+        str,
+        typer.Option(
+            "--metrics",
+            help="retrieval | all | comma-separated subset. Beyond retrieval needs a key.",
+        ),
     ] = "retrieval",
+    limit: Annotated[
+        int, typer.Option("--limit", help="Evaluate only the first N questions. Saves quota.")
+    ] = 0,
     compare: Annotated[
         bool, typer.Option("--compare", help="Run all three strategies and tabulate them.")
     ] = False,
@@ -64,19 +71,27 @@ def eval_command(
     ] = None,
     quiet: Annotated[bool, typer.Option("--quiet", "-q", help="Print only the summary.")] = False,
 ) -> None:
-    """Evaluate retrieval against an evaluation set. No API key required.
+    """Evaluate the system against an evaluation set.
 
-    Generation and abstention metrics that need an LLM arrive in Phase 7; the retrieval
-    family and the gate-1 threshold sweep run entirely offline.
+    `--metrics retrieval` (the default) runs entirely offline and is what CI gates on.
+    `--metrics all` additionally answers every question and judges the answers, costing
+    roughly one call per question plus three per answered question. Judge verdicts are
+    cached by content, so a repeat run is nearly free.
     """
     settings = get_settings()
 
-    if metrics != "retrieval":
+    families = _parse_families(metrics)
+    if families is None:
         err_console.print(
-            f"[bold red]Invalid request[/bold red]: --metrics {metrics!r} is not available yet. "
-            "Only 'retrieval' is implemented; generation and abstention arrive in Phase 7."
+            f"[bold red]Invalid request[/bold red]: --metrics {metrics!r} is not recognised. "
+            "Use 'retrieval', 'all', or a comma-separated subset of "
+            "retrieval,generation,abstention."
         )
         raise typer.Exit(code=1)
+
+    if "generation" in families:
+        _run_full(settings, dataset, strategy, families, limit, fail_under or [])
+        return
 
     try:
         thresholds = _parse_fail_under(fail_under or [])
@@ -197,3 +212,154 @@ def _render(runs: list, *, quiet: bool) -> None:  # type: ignore[type-arg]
 
     for _, path in runs:
         console.print(f"[dim]report: {path}[/dim]")
+
+
+_VALID_FAMILIES = ("retrieval", "generation", "abstention")
+
+
+def _parse_families(raw: str) -> list[str] | None:
+    """Resolve --metrics into a family list, or None if unrecognised."""
+    if raw.strip() == "all":
+        return list(_VALID_FAMILIES)
+    families = [f.strip() for f in raw.split(",") if f.strip()]
+    if not families or any(f not in _VALID_FAMILIES for f in families):
+        return None
+    return families
+
+
+def _run_full(
+    settings: Settings,
+    dataset: str,
+    strategy: str,
+    families: list[str],
+    limit: int,
+    fail_under: list[str],
+) -> None:
+    """The quota-spending path: answer every question, then judge the answers."""
+    from mlsc_assistant.evaluation.full_report import write_full_run
+    from mlsc_assistant.evaluation.full_runner import run_full_evaluation
+    from mlsc_assistant.evaluation.judge import Judge, VerdictCache
+    from mlsc_assistant.factories import make_answerer, make_provider
+
+    try:
+        thresholds = _parse_fail_under(fail_under)
+        data = resolve_dataset(
+            settings.dataset_path, dataset or settings.evaluation.default_dataset
+        )
+        store, manifest = load_store(settings)
+        validate_against_index(
+            data,
+            known_chunk_ids=[c.chunk_id for c in store.all_chunks()],
+            known_doc_ids={c.doc_id for c in store.all_chunks()},
+        )
+        embedder = make_embedder(settings)
+        retriever = make_retriever(settings, embedder=embedder, store=store)
+        provider = make_provider(settings)
+        answerer = make_answerer(settings, retriever=retriever, provider=provider)
+        judge = Judge(
+            # The judge shares the answering provider, so it shares the rate limiter too.
+            # Two independently paced clients would blow the quota together while each
+            # believed it was behaving.
+            provider,
+            cache=VerdictCache(
+                settings.runs_path / "judge-cache.json",
+                enabled=settings.evaluation.judge.cache,
+            ),
+            temperature=settings.evaluation.judge.temperature,
+        )
+    except MLSCError as exc:
+        err_console.print(f"[bold red]{exc.title}[/bold red]: {exc.detail}")
+        raise typer.Exit(code=1) from exc
+
+    total = min(limit, len(data)) if limit else len(data)
+    console.print(f"[bold]{data.name}[/bold] - {total} questions - families: {', '.join(families)}")
+    console.print(
+        f"[dim]answering with {provider.model}, judging with {judge.provider.model}[/dim]"
+    )
+    console.print()
+
+    seen = {"n": 0}
+
+    def on_question(question: Any, trace: Any) -> None:
+        seen["n"] += 1
+        mark = "ok " if (trace.answered == question.answerable) else "BAD"
+        # Distinct labels: a 4-character truncation rendered answer_correctness and
+        # answer_relevancy identically as "answ".
+        labels = {
+            "faithfulness": "faith",
+            "answer_relevancy": "relev",
+            "answer_correctness": "correct",
+        }
+        scores = " ".join(
+            f"{labels.get(k, k)}={v:.2f}" for k, v in sorted(trace.generation_scores.items())
+        )
+        console.print(
+            f"  [{seen['n']:>2}/{total}] {mark} {question.id} "
+            f"[dim]{question.type.value:<15}[/dim] {scores}"
+        )
+
+    run = run_full_evaluation(
+        data,
+        answerer,
+        embedder,
+        judge,
+        settings,
+        manifest=manifest,
+        strategy=RetrievalStrategy(strategy) if strategy else None,
+        families=families,
+        limit=limit or None,
+        progress=on_question,
+    )
+
+    report = write_full_run(settings.runs_path / run.run_id, run)
+    _render_full(run, report)
+
+    if not run.complete:
+        # An incomplete run is neither a pass nor a metric failure - it is a run that did
+        # not happen. A distinct exit code stops it being mistaken for either.
+        raise typer.Exit(code=2)
+
+    generation = run.metrics.get("generation", {})
+    failures = [
+        f"{metric} = {generation.get(metric, 0.0):.3f} < {minimum:.3f}"
+        for metric, minimum in thresholds.items()
+        if generation.get(metric, 0.0) < minimum
+    ]
+    if failures:
+        err_console.print()
+        err_console.print("[bold red]Quality gate failed[/bold red]:")
+        for failure in failures:
+            err_console.print(f"  {failure}")
+        raise typer.Exit(code=1)
+
+
+def _render_full(run: Any, report: Any) -> None:
+    if not run.complete:
+        console.print()
+        console.print(
+            f"[bold yellow]Incomplete run[/bold yellow] - stopped after "
+            f"{len(run.traces)} questions."
+        )
+        console.print(f"  {run.error}")
+
+    for label, key in (("Generation metric", "generation"), ("Abstention metric", "abstention")):
+        values = run.metrics.get(key)
+        if not values:
+            continue
+        table = Table(label, "Score", box=None, padding=(0, 2))
+        for name, value in sorted(values.items()):
+            table.add_row(name.replace("_", " "), f"{value:.3f}")
+        console.print()
+        console.print(table)
+
+    if sub := run.metrics.get("abstention_by_subtype"):
+        console.print()
+        for name, detail in sorted(sub.items()):
+            console.print(f"  {name}: caught {detail['caught']}/{detail['total']}")
+
+    stats = run.metrics.get("judge", {})
+    console.print()
+    console.print(
+        f"[dim]judge: {stats.get('calls')} calls, {stats.get('cache_hits')} cache hits[/dim]"
+    )
+    console.print(f"[dim]report: {report}[/dim]")
