@@ -6,10 +6,10 @@ base does not contain the answer** rather than inventing something plausible.
 
 Built for the MLSC AI/ML Domain Lead recruitment challenge.
 
-> **Status: Phases 0-4 complete.** The full answering pipeline works: `mlsc ask` returns
-> grounded, cited answers and refuses when the knowledge base does not have the fact.
-> `mlsc index`, `mlsc search` and `mlsc eval` still run with no API key. The HTTP API, web UI
-> and LLM-judged metrics are next. Real numbers in
+> **Status: Phases 0-5 complete.** The full pipeline works over CLI and HTTP: `mlsc serve`
+> exposes `/v1/ask`, `/v1/search`, `/v1/documents` and `/v1/eval` with interactive docs at
+> `/docs`. Everything except `/v1/ask` runs with no API key. The web UI and LLM-judged
+> answer-quality metrics are what remain. Real numbers in
 > [`docs/EVALUATION.md`](docs/EVALUATION.md#results); what went wrong along the way is in
 > [`docs/PLAN.md`](docs/PLAN.md).
 
@@ -155,8 +155,8 @@ cross-check. Reasoning for that, and full definitions, in
 
 ## Getting started
 
-`mlsc index`, `mlsc search`, `mlsc eval` and `mlsc info` work without an API key. `mlsc ask`
-needs one. `serve` arrives in Phase 5.
+`mlsc index`, `mlsc search`, `mlsc eval`, `mlsc info` and `mlsc serve` all work without an
+API key — only `mlsc ask` and `/v1/ask` need one.
 
 ```bash
 git clone https://github.com/AmeyaBorkar/mlsc-knowledge-assistant
@@ -184,7 +184,7 @@ Anthropic, OpenAI, Groq and Ollama are supported through the same interface — 
 | `mlsc index` | build the index from `data/knowledge_base/` | no |
 | `mlsc search <query>` | retrieval only, with per-retriever scores | no |
 | `mlsc ask <question>` | grounded answer with citations | yes |
-| `mlsc serve` | run the API and web UI | yes |
+| `mlsc serve` | run the API and interactive docs | no (only `/v1/ask` needs one) |
 | `mlsc eval` | run the evaluation harness | partly |
 | `mlsc calibrate` | sweep the abstention threshold | yes |
 

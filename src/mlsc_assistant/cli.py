@@ -258,6 +258,56 @@ def info() -> None:
     console.print(Panel(index_table, title="[bold]Index[/bold]", border_style="blue"))
 
 
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option("--host", help="Bind address.")] = "",
+    port: Annotated[int, typer.Option("--port", "-p", help="Bind port.")] = 0,
+    reload: Annotated[bool, typer.Option("--reload", help="Restart on code changes.")] = False,
+) -> None:
+    """Run the HTTP API and interactive docs.
+
+    Refuses to start without an index rather than serving 500s: the failure is the same
+    either way, but this one names the command that fixes it.
+    """
+    import uvicorn
+
+    settings = get_settings()
+
+    manifest = NumpyVectorStore.read_manifest(settings.index_path)
+    if manifest is None:
+        err_console.print(
+            "[bold red]Index not built[/bold red]: no index at "
+            f"{settings.index_path}. Run `mlsc index` first."
+        )
+        raise typer.Exit(code=1)
+
+    bind_host = host or settings.api.host
+    bind_port = port or settings.api.port
+
+    console.print(
+        f"[green]Serving[/green] {manifest.chunk_count} chunks from "
+        f"{manifest.document_count} documents"
+    )
+    console.print(f"  API   http://{bind_host}:{bind_port}/v1")
+    console.print(f"  Docs  http://{bind_host}:{bind_port}/docs")
+    if not settings.llm.is_configured:
+        # Worth saying out loud: retrieval endpoints work regardless, and a user who has
+        # not set a key should learn that here rather than from a 503 on /v1/ask.
+        console.print(
+            "[yellow]  No LLM key set[/yellow] — /v1/search and /v1/documents will work, "
+            "/v1/ask will not."
+        )
+    console.print()
+
+    uvicorn.run(
+        "mlsc_assistant.api.app:app",
+        host=bind_host,
+        port=bind_port,
+        reload=reload,
+        log_level=settings.log_level.lower(),
+    )
+
+
 # `ask` and `eval` live beside the subsystems they drive, so that `mlsc index` and
 # `mlsc search` import neither a provider SDK nor the evaluation tree. Registered here
 # to keep a single CLI surface.

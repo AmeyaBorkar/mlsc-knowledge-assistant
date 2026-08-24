@@ -236,7 +236,7 @@ my instruction" followed. The model had never seen it.
 
 ---
 
-### Phase 5 — HTTP API *(~45 min)*
+### Phase 5 — HTTP API *(~45 min)* — **done**
 
 - `api/app.py` (lifespan loads the index once), `api/deps.py` (composition root),
   `api/schemas.py`, `api/routes/*`
@@ -245,7 +245,28 @@ my instruction" followed. The model had never seen it.
 - `mlsc serve`
 
 **Done when:** the endpoints in `docs/API.md` respond as documented and `/docs` renders the
-generated OpenAPI schema.
+generated OpenAPI schema. Both hold, and a test asserts every documented path is actually
+served — a contract nobody checks drifts.
+
+#### Two honest deviations from the design
+
+**1. `/v1/ask/stream` does not stream tokens.** Answering is one schema-constrained call, and
+a partially-received JSON object cannot be interpreted: until it completes there is no way to
+know whether the system is answering or refusing. Emitting prose from a half-parsed object
+would mean streaming text the gates might then retract. What *does* stream early is the
+`retrieval` event, before any model call, so a UI shows its sources while the answer is still
+being produced. Real token streaming would need a second unconstrained call — double the quota
+to stream an answer that already exists. Documented at the endpoint rather than glossed.
+
+**2. `POST /v1/index/rebuild` was dropped.** Rebuilding while serving means hot-swapping the
+retriever, embedder and document cache under in-flight requests: real concurrency work for
+something `mlsc index` already does safely. `GET /v1/health` reports `index.stale`, which is
+the part that matters. Removed from the contract rather than left as a documented endpoint
+that 404s.
+
+Also worth noting: the API stays useful **without a key**. The provider is built lazily and
+cached, so `/v1/search`, `/v1/documents` and `/v1/health` serve normally when generation is
+unconfigured, and only `/v1/ask` fails — with a 503 naming the file to put a key in.
 
 ---
 

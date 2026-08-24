@@ -1,7 +1,11 @@
 # HTTP API
 
-> Status: **design, pre-implementation**. This is the contract the implementation is written
-> against; OpenAPI is generated from the FastAPI models once the code exists.
+> Status: **implemented**. Generated OpenAPI is served at `/docs` once running; this
+> document explains the reasoning the schema cannot. Run it with `mlsc serve`.
+>
+> One deviation from the original design is documented at `POST /v1/ask/stream`: the answer
+> event is not token-by-token, because structured output cannot be interpreted until it is
+> complete.
 
 Base URL: `http://127.0.0.1:8000`  ·  All endpoints are under `/v1`.
 
@@ -37,10 +41,19 @@ These are the conventions the whole surface follows, stated once:
 | `GET` | `/v1/documents` | list knowledge-base documents | no |
 | `GET` | `/v1/documents/{doc_id}` | full document text | no |
 | `GET` | `/v1/documents/{doc_id}/chunks` | chunks with offsets, for citation UIs | no |
-| `POST` | `/v1/index/rebuild` | re-ingest the knowledge base | no |
-| `POST` | `/v1/eval/runs` | start an evaluation run (202) | yes |
-| `GET` | `/v1/eval/runs` | list past runs | no |
-| `GET` | `/v1/eval/runs/{run_id}` | run status, metrics, report | no |
+| `POST` | `/v1/eval/runs` | start an evaluation run (202) | no |
+| `GET` | `/v1/eval/runs` | list runs from this process | no |
+| `GET` | `/v1/eval/runs/{run_id}` | run status, metrics, report path | no |
+
+**`POST /v1/index/rebuild` was designed and then dropped.** Rebuilding while serving means
+hot-swapping the loaded retriever, embedder and document cache under in-flight requests —
+real concurrency work for an operation `mlsc index` already does safely in one line. The
+endpoint would have existed to look complete rather than because anything needs it.
+`GET /v1/health` reports `index.stale`, which is the part that actually matters: a knowledge
+base edited without re-indexing is *visible* rather than silently serving old content.
+
+Evaluation runs need no key today because only the retrieval family is implemented. The
+generation metrics in Phase 7 will change that for those families.
 
 ---
 
@@ -80,7 +93,7 @@ The primary endpoint.
   "confidence": "high",
   "citations": [
     {
-      "chunk_id": "leadership::c03",
+      "chunk_id": "leadership::c01",
       "doc_id": "leadership",
       "doc_title": "MLSC Leadership Structure",
       "source_file": "leadership.txt",
@@ -95,21 +108,20 @@ The primary endpoint.
     "retrieval": {
       "strategy": "hybrid",
       "top_k": 6,
-      "candidates_considered": 40,
-      "top_score": 0.87,
-      "score_margin": 0.31,
+      "candidates_considered": 11,
+      "top_dense_score": 0.87,
+      "score_margin": 0.0021,
       "documents_represented": ["leadership", "domains"],
-      "dense_ms": 4,
-      "lexical_ms": 1,
-      "fusion_ms": 1
+      "chunks": [{"chunk_id": "leadership::c01", "score": 0.0325}],
+      "timings_ms": {"dense": 3.9, "lexical": 0.4, "fusion": 0.1}
     },
     "generation": {
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
+      "model": "gemini-3.1-flash-lite",
       "prompt_version": "grounded-v1",
-      "input_tokens": 912,
-      "output_tokens": 96,
-      "latency_ms": 740
+      "input_tokens": 778,
+      "output_tokens": 150,
+      "latency_ms": 1840
     },
     "gates": {
       "retrieval_gate": "pass",
@@ -117,7 +129,8 @@ The primary endpoint.
       "citation_binding": "pass",
       "faithfulness_check": "skipped"
     },
-    "total_ms": 751
+    "abstention_threshold": 0.55,
+    "total_ms": 1852
   }
 }
 ```
@@ -151,20 +164,36 @@ refusal helpful, and the prompt is written to produce it.
 
 ## `POST /v1/ask/stream`
 
-Identical request. Responds `text/event-stream` with named SSE events so a client can render
-progressively and show its work:
+Identical request. Responds `text/event-stream` with named SSE events:
 
 ```
-event: retrieval    data: {"chunks":[...],"strategy":"hybrid"}
-event: token        data: {"text":"Domain leads plan "}
-event: token        data: {"text":"the learning roadmap "}
-event: citations    data: {"citations":[...]}
+event: retrieval    data: {"strategy":"hybrid","top_dense_score":0.87,"documents":[...],"chunks":[...]}
+event: answer       data: {"answer":"Domain leads plan...","answered":true,"confidence":"high"}
+event: citations    data: {"citations":[...],"sources":["leadership.txt"]}
 event: done         data: {"answered":true,"diagnostics":{...}}
 event: error        data: {"type":"...","title":"...","trace_id":"..."}
 ```
 
-`retrieval` arriving before the first token means the UI can show the sources it is about to
-use while the answer is still generating.
+`retrieval` is emitted the moment retrieval finishes and **before any model call**, so a UI
+can show the sources it is about to use while the answer is still being produced. That is
+the part of streaming a user actually benefits from here.
+
+**The `answer` event arrives whole, not token by token.** This is a real consequence of
+choosing structured output for abstention (D5), and worth stating plainly rather than
+hiding behind an event name.
+
+Answering is one schema-constrained call returning `{sufficient_context, answer,
+cited_chunk_ids, confidence}`. A partially-received JSON object cannot be interpreted:
+until the response completes there is no way to know whether the system is answering or
+refusing, and emitting prose from a half-parsed object would mean streaming text that the
+gates might then retract — the failure mode being designed against in the first place.
+Citation binding has the same problem, since it can only validate ids once they all exist.
+
+Streaming genuine tokens would require a second, unconstrained call after the structured
+one: double the cost and double the quota, to stream an answer that already exists. On a
+free tier of 20 requests per day that trade is not close. If real token streaming were
+needed, the honest design would be to stream the prose first and apply the gates to the
+completed text, accepting that a refusal can retract what the user already read.
 
 ---
 
@@ -267,7 +296,7 @@ Returns `202 Accepted` with `Location: /v1/eval/runs/{run_id}` and `{"run_id": "
     "abstention": { "precision": 0.0, "recall": 0.0, "f1": 0.0,
                     "hallucination_rate": 0.0, "over_refusal_rate": 0.0 }
   },
-  "report_path": "evaluation/runs/20260824-091203-hybrid/report.md"
+  "report_path": "evaluation/runs/api-3f9c2a1b4e77/report.md"
 }
 ```
 
