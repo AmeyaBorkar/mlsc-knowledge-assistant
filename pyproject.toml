@@ -61,6 +61,9 @@ Repository = "https://github.com/AmeyaBorkar/mlsc-knowledge-assistant"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mlsc_assistant"]
+# The web UI is package data, not source. Without this a wheel install serves the
+# API with no page behind it.
+artifacts = ["src/mlsc_assistant/web/*"]
 
 # ---------------------------------------------------------------------------
 [tool.ruff]

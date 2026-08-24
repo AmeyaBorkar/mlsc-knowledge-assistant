@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en" data-state="idle">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLSC Knowledge Assistant</title>
+<style>
+/* ---------------------------------------------------------------------------
+   Monochrome by construction: no hue anywhere. Emphasis comes from weight,
+   scale and opacity, which is also why the refusal state reads as considered
+   rather than as an error — there is no red available to make it look broken.
+
+   Self-contained on purpose. No webfont, no CDN. The retrieval half of this
+   system runs without a network; the page that demonstrates it should too.
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #08080a;
+  --surface: #0f0f12;
+  --raised: #16161a;
+  --line: #232328;
+  --text: #f4f4f5;
+  --dim: #8b8b93;
+  --faint: #5a5a63;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+  --sans: ui-sans-serif, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fine grain over a flat black, so large empty areas read as a surface
+   rather than as a void. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.022;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.shell { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+/* --- masthead ------------------------------------------------------------ */
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 26px 0 0;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 18px;
+}
+.mark {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.status {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.pulse {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--faint);
+  animation: breathe 2.6s var(--ease) infinite;
+}
+.status[data-ok="true"] .pulse { background: var(--text); }
+@keyframes breathe { 0%,100% { opacity: .25; transform: scale(1); } 50% { opacity: 1; transform: scale(1.35); } }
+
+/* --- hero ---------------------------------------------------------------- */
+
+.hero { padding: clamp(48px, 11vh, 118px) 0 0; }
+
+h1 {
+  font-size: clamp(3.2rem, 13.5vw, 10.5rem);
+  font-weight: 900;
+  letter-spacing: -0.055em;
+  line-height: 0.84;
+  margin-bottom: 20px;
+}
+/* Every entrance animation below animates *from* a hidden state to the
+   element's natural one, with `backwards` fill rather than `forwards`.
+
+   The obvious way round — resting at `opacity: 0` and animating to 1 — makes
+   visibility depend on the animation actually running. It does not always: browsers
+   throttle animation timers in background tabs and on low-power devices, and this
+   page rendered a blank hero under a throttled headless browser for exactly that
+   reason. Animating from hidden means the worst case is content that appears
+   without motion, never content that never appears. */
+h1 .word {
+  display: inline-block;
+  animation: rise 1.15s var(--ease) backwards;
+}
+h1 .word:nth-child(2) { animation-delay: 0.08s; }
+h1 .dim { color: var(--faint); }
+@keyframes rise { from { opacity: 0; transform: translateY(0.34em) rotate(1.6deg); } }
+
+.lede {
+  font-size: clamp(1rem, 2.1vw, 1.28rem);
+  color: var(--dim);
+  max-width: 52ch;
+  animation: fade 1s var(--ease) 0.24s backwards;
+}
+@keyframes fade { from { opacity: 0; transform: translateY(14px); } }
+.lede strong { color: var(--text); font-weight: 600; }
+
+/* Collapse the hero once a question has been asked, so the answer owns the
+   viewport instead of competing with a giant wordmark. */
+[data-state="asked"] .hero { padding-top: 26px; }
+[data-state="asked"] h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); line-height: 1; margin-bottom: 8px; }
+[data-state="asked"] .lede { display: none; }
+.hero, h1 { transition: padding .8s var(--ease), font-size .8s var(--ease), margin .8s var(--ease); }
+
+/* --- ask ----------------------------------------------------------------- */
+
+.ask { margin: clamp(30px, 5vh, 52px) 0 0; animation: fade 1s var(--ease) 0.36s backwards; }
+
+.field { position: relative; display: flex; align-items: center; gap: 14px; }
+
+#q {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: clamp(1.15rem, 3.1vw, 1.9rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  padding: 14px 0;
+  outline: none;
+}
+#q::placeholder { color: var(--faint); }
+
+.rule { position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line); }
+.rule::after {
+  content: ""; position: absolute; inset: 0;
+  background: var(--text);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .7s var(--ease);
+}
+.field:focus-within .rule::after { transform: scaleX(1); }
+
+button.go {
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 12px 24px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform .35s var(--ease), opacity .25s;
+}
+button.go:hover:not(:disabled) { transform: translateY(-2px); }
+button.go:disabled { opacity: .3; cursor: not-allowed; }
+
+.examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.examples button {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--dim);
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: color .3s, border-color .3s, transform .3s var(--ease);
+}
+.examples button:hover { color: var(--text); border-color: var(--dim); transform: translateY(-1px); }
+.examples button::before { content: attr(data-tag); color: var(--faint); margin-right: 7px; font-family: var(--mono); font-size: 10px; }
+
+/* --- pipeline ------------------------------------------------------------ */
+
+.pipeline {
+  display: flex; align-items: center; gap: 0;
+  margin: 34px 0 0;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.05em;
+  color: var(--faint);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .6s var(--ease), transform .6s var(--ease);
+}
+[data-state="asked"] .pipeline, [data-state="working"] .pipeline { opacity: 1; transform: none; }
+.stage { display: flex; align-items: center; gap: 7px; }
+.stage + .stage::before {
+  content: ""; width: 26px; height: 1px; background: var(--line); margin: 0 11px;
+}
+.dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  border: 1px solid var(--faint);
+  transition: background .45s, border-color .45s, transform .45s var(--ease);
+}
+.stage[data-on="run"] .dot { animation: spin 1s linear infinite; border-color: var(--text); border-top-color: transparent; border-radius: 50%; }
+.stage[data-on="pass"] .dot { background: var(--text); border-color: var(--text); transform: scale(1.15); }
+.stage[data-on="pass"] { color: var(--text); }
+/* A failed gate is filled hollow and ringed, not coloured — refusing is a
+   correct outcome, so it must not look like an error. */
+.stage[data-on="fail"] .dot { background: none; border-color: var(--text); box-shadow: 0 0 0 3px rgba(244,244,245,.14); transform: scale(1.15); }
+.stage[data-on="fail"] { color: var(--text); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* --- results ------------------------------------------------------------- */
+
+.stage-area { margin: 40px 0 90px; }
+
+section.block { animation: fade .85s var(--ease) backwards; }
+
+.label {
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--faint);
+  margin-bottom: 14px;
+}
+
+/* sources appear before the answer — the one genuinely early signal */
+.sources { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 40px; }
+.src {
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 9px 13px; background: var(--surface);
+  font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+  animation: pop .6s var(--ease) backwards;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+.src b { color: var(--text); font-weight: 600; }
+.src i { font-style: normal; color: var(--faint); margin-left: 8px; }
+
+.answer {
+  font-size: clamp(1.28rem, 3.2vw, 1.92rem);
+  font-weight: 450;
+  letter-spacing: -0.022em;
+  line-height: 1.42;
+  max-width: 34ch;
+  margin-bottom: 12px;
+}
+.answer.wide { max-width: 46ch; }
+.answer .w { display: inline-block; animation: unblur .55s var(--ease) backwards; }
+@keyframes unblur { from { opacity: 0; filter: blur(5px); } }
+
+/* A refusal is set in the same type as an answer, indented behind a rule.
+   Same voice, different posture — not a warning box. */
+.answer.refusal { border-left: 2px solid var(--line); padding-left: 22px; color: var(--dim); }
+.answer.refusal .w { color: var(--dim); }
+
+.verdict {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+  color: var(--faint); margin-top: 22px;
+  text-transform: uppercase;
+}
+.verdict::before { content: ""; width: 18px; height: 1px; background: var(--line); }
+
+/* citations */
+.cites { margin-top: 46px; display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.cite { background: var(--surface); padding: 18px 20px; transition: background .35s; cursor: pointer; }
+.cite:hover { background: var(--raised); }
+.cite-top { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; font-family: var(--mono); font-size: 11px; }
+.cite-id { color: var(--text); font-weight: 600; }
+.cite-file { color: var(--faint); }
+.cite-text { color: var(--dim); font-size: 14px; margin-top: 9px; line-height: 1.6; max-height: 0; overflow: hidden; transition: max-height .55s var(--ease), margin .55s var(--ease); }
+.cite[data-open="1"] .cite-text { max-height: 340px; }
+
+/* diagnostics */
+details.diag { margin-top: 46px; border-top: 1px solid var(--line); padding-top: 20px; }
+details.diag summary { cursor: pointer; list-style: none; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); transition: color .3s; }
+details.diag summary::-webkit-details-marker { display: none; }
+details.diag summary:hover { color: var(--text); }
+details.diag summary::after { content: " +"; }
+details.diag[open] summary::after { content: " −"; }
+/* Separators are drawn as cell borders rather than as a 1px grid gap over a
+   line-coloured container. The gap trick paints the *unfilled* tail of the last
+   row too, which showed up as a grey void beside the orphaned seventh cell. */
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  background: var(--surface); border: 1px solid var(--line);
+  margin-top: 18px; border-radius: 8px; overflow: hidden;
+}
+.cell {
+  padding: 15px 16px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.cell dt { font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
+.cell dd { font-size: 21px; font-weight: 700; letter-spacing: -0.03em; margin-top: 5px; font-variant-numeric: tabular-nums; }
+.cell dd small { font-size: 12px; font-weight: 400; color: var(--faint); }
+.chunklist { margin-top: 16px; font-family: var(--mono); font-size: 11px; color: var(--faint); display: grid; gap: 5px; }
+.chunklist span b { color: var(--dim); font-weight: 400; }
+
+footer { border-top: 1px solid var(--line); padding: 22px 0 40px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between; }
+footer a { color: var(--dim); text-decoration: none; border-bottom: 1px solid var(--line); }
+footer a:hover { color: var(--text); }
+
+/* With every animation now running from hidden to the natural resting state,
+   simply switching animations off leaves everything visible. No per-selector
+   opacity rescue is needed, which is the point of the pattern. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: .01ms !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header>
+    <div class="mark">MLSC&nbsp;&nbsp;Knowledge&nbsp;Assistant</div>
+    <div class="status" id="status" data-ok="false"><span class="pulse"></span><span id="statusText">connecting</span></div>
+  </header>
+
+  <div class="hero">
+    <h1><span class="word">Grounded.</span> <span class="word dim">Or silent.</span></h1>
+    <p class="lede">
+      Answers drawn only from the MLSC knowledge base, with the passage behind every claim.
+      When the documents don't contain the answer, <strong>it says so</strong> instead of inventing one.
+    </p>
+  </div>
+
+  <form class="ask" id="form">
+    <div class="field">
+      <input id="q" autocomplete="off" placeholder="Ask about MLSC…" aria-label="Your question">
+      <button class="go" id="go" type="submit">Ask</button>
+      <div class="rule"></div>
+    </div>
+    <div class="examples" id="examples">
+      <button type="button" data-tag="DIRECT">What technical domains exist in MLSC?</button>
+      <button type="button" data-tag="MULTI-DOC">How do MLSC hackathons connect to the technical domains?</button>
+      <button type="button" data-tag="NEAR MISS">Who is the current Technical Head of MLSC?</button>
+      <button type="button" data-tag="OFF DOMAIN">What is the capital of France?</button>
+    </div>
+  </form>
+
+  <div class="pipeline" id="pipeline">
+    <div class="stage" data-stage="retrieval"><span class="dot"></span>retrieve</div>
+    <div class="stage" data-stage="retrieval_gate"><span class="dot"></span>gate 1 · threshold</div>
+    <div class="stage" data-stage="context_sufficiency"><span class="dot"></span>gate 2 · sufficiency</div>
+    <div class="stage" data-stage="citation_binding"><span class="dot"></span>bind citations</div>
+  </div>
+
+  <main class="stage-area" id="out"></main>
+
+  <footer>
+    <span>Hybrid retrieval · BM25 + bge-small · calibrated abstention</span>
+    <span><a href="/docs">API docs</a> &nbsp;·&nbsp; <a href="/v1/health">health</a></span>
+  </footer>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
+const out = $('#out'), form = $('#form'), input = $('#q'), go = $('#go');
+
+/* --- health ------------------------------------------------------------- */
+fetch('/v1/health').then(r => r.json()).then(h => {
+  const s = $('#status');
+  s.dataset.ok = String(h.generation.configured);
+  $('#statusText').textContent = h.generation.configured
+    ? `${h.index.chunks} chunks · ${h.generation.model}`
+    : `${h.index.chunks} chunks · no key — retrieval only`;
+}).catch(() => { $('#statusText').textContent = 'offline'; });
+
+/* --- pipeline ----------------------------------------------------------- */
+const stages = [...document.querySelectorAll('.stage')];
+const setStage = (name, state) => {
+  const s = stages.find(x => x.dataset.stage === name);
+  if (s) s.dataset.on = state;
+};
+const resetStages = () => stages.forEach(s => delete s.dataset.on);
+
+/* --- rendering ---------------------------------------------------------- */
+
+/* Words reveal in sequence. This is presentation only: the answer arrives
+   whole, because a partially-received structured response cannot be read
+   as either an answer or a refusal until it is complete. */
+function reveal(container, text, extraClass) {
+  const p = el('p', 'answer' + (extraClass ? ' ' + extraClass : ''));
+  if (text.length > 220) p.classList.add('wide');
+  text.split(/\s+/).forEach((word, i) => {
+    const w = el('span', 'w', word);
+    w.style.animationDelay = Math.min(i * 22, 1400) + 'ms';
+    p.appendChild(w);
+    // The separating space must be a text node *outside* the span: these are
+    // inline-block, and an inline-block collapses its own trailing whitespace,
+    // which ran every word together into one string.
+    p.appendChild(document.createTextNode(' '));
+  });
+  container.appendChild(p);
+}
+
+function renderSources(data) {
+  const block = el('section', 'block');
+  block.appendChild(el('div', 'label', `Retrieved · ${data.chunks.length} passages before the model ran`));
+  const wrap = el('div', 'sources');
+  data.chunks.forEach((c, i) => {
+    const chip = el('div', 'src');
+    chip.style.animationDelay = (i * 60) + 'ms';
+    chip.innerHTML = `<b>${c.chunk_id}</b><i>${c.doc_title}</i>`;
+    wrap.appendChild(chip);
+  });
+  block.appendChild(wrap);
+  out.appendChild(block);
+}
+
+function renderAnswer(a) {
+  const block = el('section', 'block');
+  block.appendChild(el('div', 'label', a.answered ? 'Answer' : 'No answer — and why'));
+  reveal(block, a.answer, a.answered ? '' : 'refusal');
+  const v = el('div', 'verdict');
+  v.textContent = a.answered
+    ? `answered · confidence ${a.confidence}`
+    : `declined · ${(a.abstention_reason || '').replace(/_/g, ' ')}`;
+  block.appendChild(v);
+  out.appendChild(block);
+}
+
+function renderCitations(c) {
+  if (!c.citations.length) return;
+  const block = el('section', 'block');
+  block.appendChild(el('div', 'label', `Sources · ${c.sources.join(' · ')}`));
+  const list = el('div', 'cites');
+  c.citations.forEach(cite => {
+    const row = el('div', 'cite');
+    row.innerHTML =
+      `<div class="cite-top"><span class="cite-id">${cite.chunk_id}</span>` +
+      `<span class="cite-file">${cite.source_file} · chars ${cite.char_range[0]}–${cite.char_range[1]}</span></div>` +
+      `<div class="cite-text">${cite.snippet}</div>`;
+    row.addEventListener('click', () => { row.dataset.open = row.dataset.open === '1' ? '0' : '1'; });
+    list.appendChild(row);
+  });
+  block.appendChild(list);
+  out.appendChild(block);
+}
+
+function renderDiagnostics(d) {
+  if (!d) return;
+  const r = d.retrieval || {}, g = d.generation || {}, gates = d.gates || {};
+  const block = el('section', 'block');
+  const det = el('details', 'diag');
+  det.appendChild(el('summary', null, 'Why this answer'));
+
+  const cells = [
+    ['top cosine', r.top_dense_score != null ? r.top_dense_score.toFixed(3) : '—'],
+    ['threshold', d.abstention_threshold != null ? d.abstention_threshold.toFixed(2) : '—'],
+    ['strategy', r.strategy || '—'],
+    ['documents', (r.documents_represented || []).length],
+    ['tokens in', g.input_tokens ?? '—'],
+    ['tokens out', g.output_tokens ?? '—'],
+    ['total', `${Math.round(d.total_ms || 0)}<small>ms</small>`],
+  ];
+  const grid = el('div', 'grid');
+  cells.forEach(([k, v]) => {
+    const c = el('div', 'cell');
+    c.innerHTML = `<dt>${k}</dt><dd>${v}</dd>`;
+    grid.appendChild(c);
+  });
+  det.appendChild(grid);
+
+  const gateGrid = el('div', 'grid');
+  Object.entries(gates).forEach(([k, v]) => {
+    const c = el('div', 'cell');
+    c.innerHTML = `<dt>${k.replace(/_/g, ' ')}</dt><dd style="font-size:14px">${v}</dd>`;
+    gateGrid.appendChild(c);
+  });
+  det.appendChild(gateGrid);
+
+  if (r.chunks && r.chunks.length) {
+    const list = el('div', 'chunklist');
+    r.chunks.forEach((c, i) => {
+      const s = el('span');
+      s.innerHTML = `${String(i + 1).padStart(2, '0')} &nbsp;<b>${c.chunk_id}</b> &nbsp;${c.score}`;
+      list.appendChild(s);
+    });
+    det.appendChild(list);
+  }
+
+  block.appendChild(det);
+  out.appendChild(block);
+}
+
+function renderError(p) {
+  const block = el('section', 'block');
+  block.appendChild(el('div', 'label', p.title || 'Something went wrong'));
+  reveal(block, p.detail || 'Unknown error.', 'refusal');
+  out.appendChild(block);
+}
+
+/* --- ask ---------------------------------------------------------------- */
+
+async function ask(question) {
+  document.documentElement.dataset.state = 'working';
+  out.innerHTML = '';
+  resetStages();
+  setStage('retrieval', 'run');
+  go.disabled = true;
+  input.blur();
+
+  let response;
+  try {
+    response = await fetch('/v1/ask/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    });
+  } catch (e) {
+    setStage('retrieval', 'fail');
+    renderError({ title: 'Cannot reach the API', detail: String(e) });
+    go.disabled = false;
+    return;
+  }
+
+  if (!response.ok) {
+    let problem = { title: `HTTP ${response.status}`, detail: 'The request was rejected.' };
+    try { problem = await response.json(); } catch {}
+    setStage('retrieval', 'fail');
+    renderError(problem);
+    go.disabled = false;
+    document.documentElement.dataset.state = 'asked';
+    return;
+  }
+
+  /* Minimal SSE reader: the events are named and newline-delimited, so a
+     hand-rolled parser is smaller and clearer than pulling in a library. */
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '', event = null;
+
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (line.startsWith('event:')) { event = line.slice(6).trim(); continue; }
+      if (!line.startsWith('data:')) continue;
+      let payload;
+      try { payload = JSON.parse(line.slice(5).trim()); } catch { continue; }
+
+      if (event === 'retrieval') {
+        setStage('retrieval', 'pass');
+        setStage('retrieval_gate', 'run');
+        renderSources(payload);
+      } else if (event === 'answer') {
+        const gate1Failed = !payload.answered && payload.abstention_reason === 'no_relevant_context';
+        setStage('retrieval_gate', gate1Failed ? 'fail' : 'pass');
+        if (!gate1Failed) {
+          setStage('context_sufficiency', payload.answered ? 'pass' : 'fail');
+        }
+        renderAnswer(payload);
+      } else if (event === 'citations') {
+        if (payload.citations.length) setStage('citation_binding', 'pass');
+        renderCitations(payload);
+      } else if (event === 'done') {
+        renderDiagnostics(payload.diagnostics);
+      } else if (event === 'error') {
+        renderError(payload);
+      }
+    }
+  }
+
+  go.disabled = false;
+  document.documentElement.dataset.state = 'asked';
+}
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const q = input.value.trim();
+  if (q) ask(q);
+});
+
+$('#examples').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  input.value = b.textContent;
+  ask(b.textContent);
+});
+</script>
+</body>
+</html>

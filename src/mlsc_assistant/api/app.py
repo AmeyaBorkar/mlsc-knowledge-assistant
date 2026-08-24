@@ -16,12 +16,14 @@ import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from mlsc_assistant import __version__
 from mlsc_assistant.api.deps import build_state
@@ -143,14 +145,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for module in (health, ask, search, documents, evaluation):
         app.include_router(module.router, prefix="/v1")
 
-    @app.get("/", include_in_schema=False)
-    async def root() -> dict[str, str]:
-        return {
-            "name": "MLSC Knowledge Assistant",
-            "version": __version__,
-            "docs": "/docs",
-            "health": "/v1/health",
-        }
+    # Mounted last and at the root, so it never shadows /v1 or /docs. StaticFiles
+    # matches only after every router has had its turn.
+    web_dir = Path(__file__).resolve().parent.parent / "web"
+    if resolved.api.serve_web_ui and web_dir.is_dir():
+        app.mount("/", StaticFiles(directory=web_dir, html=True), name="web")
+    else:
+
+        @app.get("/", include_in_schema=False)
+        async def root() -> dict[str, str]:
+            return {
+                "name": "MLSC Knowledge Assistant",
+                "version": __version__,
+                "docs": "/docs",
+                "health": "/v1/health",
+            }
 
     return app
 

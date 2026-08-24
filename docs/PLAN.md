@@ -270,7 +270,7 @@ unconfigured, and only `/v1/ask` fails — with a 503 naming the file to put a k
 
 ---
 
-### Phase 6 — Web UI *(~30 min)*
+### Phase 6 — Web UI *(~30 min)* — **done**
 
 One static page served by FastAPI: question box, streamed answer, citation cards that expand to
 the source passage, and a collapsible diagnostics panel showing retrieved chunks with scores and
@@ -280,7 +280,43 @@ Deliberately small — the brief says correctness over UI. But the diagnostics p
 place: **being able to show, live, why the system refused a question is the strongest thing in
 the demo.**
 
-**Done when:** the demo can be driven end to end in a browser.
+**Done when:** the demo can be driven end to end in a browser. It can — `mlsc serve`
+then open the root.
+
+Monochrome by construction: no hue anywhere, so emphasis comes from weight, scale and
+opacity. That is not only a style choice — with no red available, **a refusal cannot be
+made to look like an error**, which is exactly the reading to avoid for a system whose
+refusals are correct behaviour. The refusal is set in the same type as an answer, indented
+behind a rule.
+
+Self-contained: no webfont, no CDN, no external request of any kind, enforced by a test.
+Retrieval runs without a network, so the page demonstrating it should too, and a live demo
+should not depend on the venue's wifi reaching a font host.
+
+The element that earns its place is the **gate pipeline**, which fills as SSE events
+arrive, plus the diagnostics panel beneath it. On the Technical Head question the panel
+shows *top cosine 0.752, threshold 0.55* — so a viewer can see for themselves that gate 1
+could not have caught it and gate 2 did. That is the Phase 3 argument made visible in one
+screen.
+
+#### Three bugs the screenshots caught that a 200 response would not
+
+Rendering was verified with a headless browser rather than by trusting an HTTP status, and
+all three of these were invisible to the test suite:
+
+1. **The page was blank in a throttled browser.** Entry animations rested at `opacity: 0`
+   and animated *to* 1, so visibility depended on the animation actually running — and
+   browsers throttle animation timers in background tabs and on low-power devices. Every
+   animation now runs *from* hidden to the element's natural state with `backwards` fill,
+   so the worst case is content that appears without motion rather than content that never
+   appears. That also let the reduced-motion block shrink to simply switching animations
+   off.
+2. **The answer rendered with no spaces** — "ThetechnicaldomainsinMLSCinclude". Each word
+   is an `inline-block` for the stagger, and an inline-block collapses its own trailing
+   whitespace. The separator is now a text node outside the span.
+3. **A grey void beside the diagnostics grid**, because the 1px-gap-over-a-coloured-
+   container trick also paints the unfilled tail of the last row. Separators are cell
+   borders now.
 
 ---
 

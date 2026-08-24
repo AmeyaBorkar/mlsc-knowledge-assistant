@@ -10,6 +10,7 @@ Retrieval and document routes run against the real index, since they need no key
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -338,3 +339,41 @@ def test_openapi_documents_every_endpoint_the_contract_promises(client) -> None:
         "/v1/eval/runs/{run_id}",
     ):
         assert path in paths, f"{path} is documented in docs/API.md but not served"
+
+
+# ---------------------------------------------------------------------------
+# Web UI
+# ---------------------------------------------------------------------------
+
+
+def test_the_ui_is_served_at_the_root(client) -> None:  # type: ignore[no-untyped-def]
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    assert "MLSC Knowledge Assistant" in response.text
+
+
+def test_the_root_mount_does_not_shadow_the_api(client) -> None:  # type: ignore[no-untyped-def]
+    """StaticFiles is mounted at "/" and would swallow everything if ordered wrongly."""
+    for path in ("/v1/health", "/openapi.json", "/docs"):
+        assert client.get(path).status_code == 200, f"{path} was shadowed by the UI mount"
+
+
+def test_the_ui_makes_no_external_requests() -> None:
+    """The page must stay self-contained.
+
+    Retrieval works without a network, so the page demonstrating it should too — and a
+    live demo should not depend on conference wifi reaching a font CDN.
+    """
+    from mlsc_assistant.api import app as app_module
+
+    html = (Path(app_module.__file__).resolve().parent.parent / "web" / "index.html").read_text(
+        encoding="utf-8"
+    )
+    for marker in ("http://", "https://", "//cdn", "@import"):
+        offenders = [
+            line.strip()
+            for line in html.splitlines()
+            if marker in line and "xmlns" not in line and "mlsc-assistant/errors" not in line
+        ]
+        assert not offenders, f"external reference ({marker}): {offenders[:2]}"

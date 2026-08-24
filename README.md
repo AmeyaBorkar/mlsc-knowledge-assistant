@@ -6,10 +6,9 @@ base does not contain the answer** rather than inventing something plausible.
 
 Built for the MLSC AI/ML Domain Lead recruitment challenge.
 
-> **Status: functionally complete.** The pipeline runs over CLI and HTTP, and every metric
-> family the brief asks for is measured — see [results](docs/EVALUATION.md#results). What
-> remains is the optional web UI (Phase 6) and a final polish pass; the brief explicitly
-> weights correctness over UI. Real numbers in
+> **Status: complete.** CLI, HTTP API and web UI all run, and every metric family the brief
+> asks for is measured — see [results](docs/EVALUATION.md#results). `mlsc serve` then open
+> the root for the demo. Real numbers in
 > [`docs/EVALUATION.md`](docs/EVALUATION.md#results); what went wrong along the way is in
 > [`docs/PLAN.md`](docs/PLAN.md).
 
@@ -178,7 +177,7 @@ mlsc search "judging criteria"   # inspect retrieval — no API key needed
 
 cp .env.example .env             # add a key for answer generation
 mlsc ask "What technical domains exist in MLSC?"
-mlsc serve                       # http://127.0.0.1:8000
+mlsc serve                       # UI + API + docs on http://127.0.0.1:8000
 ```
 
 A free Gemini key from [aistudio.google.com](https://aistudio.google.com/apikey) is the default.
@@ -204,6 +203,18 @@ Anthropic, OpenAI, Groq and Ollama are supported through the same interface — 
 Full contract with request/response shapes in [`docs/API.md`](docs/API.md); interactive docs at
 `/docs` once running.
 
+### Web UI
+
+`mlsc serve` also serves a single-page demo at the root. Monochrome, self-contained — no
+webfont, no CDN, no external request of any kind, enforced by a test, because retrieval runs
+without a network and the page demonstrating it should too.
+
+The part worth looking at is the **gate pipeline** and the diagnostics panel under it. Ask
+*"Who is the current Technical Head of MLSC?"* and the panel reports **top cosine 0.752
+against a threshold of 0.55** — you can see for yourself that a similarity threshold could
+not have caught it, and which gate did. There is no red in the palette, so a refusal is
+physically incapable of looking like an error.
+
 ---
 
 ## Repository layout
@@ -218,7 +229,7 @@ src/mlsc_assistant/
 ├── generation/    prompts, answerer, verifier, provider adapters
 ├── evaluation/    datasets, metrics, judge, runner, reporting
 ├── api/           FastAPI app, routes, schemas, composition root
-└── web/           single-page demo UI
+└── web/           single-page demo UI (one self-contained file)
 
 data/knowledge_base/   the six source documents
 evaluation/datasets/   evaluation sets (never imported by src/)

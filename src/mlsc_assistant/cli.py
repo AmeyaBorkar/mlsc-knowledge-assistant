@@ -288,6 +288,8 @@ def serve(
         f"[green]Serving[/green] {manifest.chunk_count} chunks from "
         f"{manifest.document_count} documents"
     )
+    if settings.api.serve_web_ui:
+        console.print(f"  UI    http://{bind_host}:{bind_port}/")
     console.print(f"  API   http://{bind_host}:{bind_port}/v1")
     console.print(f"  Docs  http://{bind_host}:{bind_port}/docs")
     if not settings.llm.is_configured:
